@@ -609,7 +609,7 @@ impl CosmicCalendar {
                             }
                         })
                     } else {
-                        // Normal day
+                        // Normal day - light border
                         container(
                             container(widget::text(day.to_string()))
                                 .padding([4, 8, 0, 0])  // Top-right padding
@@ -619,6 +619,17 @@ impl CosmicCalendar {
                         .width(Length::Fill)
                         .height(Length::Fill)
                         .padding(4)
+                        .style(|theme: &cosmic::Theme| {
+                            container::Style {
+                                background: None,
+                                border: Border {
+                                    color: Color::from_rgba(0.5, 0.5, 0.5, 0.2).into(),  // Light gray border
+                                    width: 1.0,
+                                    radius: [4.0, 4.0, 4.0, 4.0].into(),  // Force 4px radius
+                                },
+                                ..Default::default()
+                            }
+                        })
                     };
 
                     // Wrap in mouse_area for click handling - no theme button styling
