@@ -1,11 +1,14 @@
-use cosmic::iced::Length;
+use cosmic::iced::{alignment, Length};
 use cosmic::widget::{column, container, row};
 use cosmic::{widget, Element};
 
 use crate::components::render_day_cell;
 use crate::message::Message;
 use crate::models::CalendarState;
-use crate::ui_constants::{FONT_SIZE_MEDIUM, PADDING_SMALL, PADDING_MONTH_GRID, SPACING_TINY, WEEKDAYS_FULL};
+use crate::ui_constants::{
+    FONT_SIZE_MEDIUM, FONT_SIZE_SMALL, PADDING_SMALL, PADDING_MONTH_GRID,
+    SPACING_TINY, WEEKDAYS_FULL, WEEK_NUMBER_WIDTH
+};
 
 pub fn render_month_view(
     calendar_state: &CalendarState,
@@ -13,8 +16,19 @@ pub fn render_month_view(
 ) -> Element<'static, Message> {
     let mut grid = column().spacing(SPACING_TINY).padding(PADDING_MONTH_GRID);
 
-    // Weekday headers - use iterator to avoid repetition
+    // Weekday headers with week number column
     let mut header_row = row().spacing(SPACING_TINY);
+
+    // Week number header (empty)
+    header_row = header_row.push(
+        container(widget::text("Wk").size(FONT_SIZE_SMALL))
+            .width(Length::Fixed(WEEK_NUMBER_WIDTH))
+            .padding(PADDING_SMALL)
+            .center_x(Length::Fill)
+            .align_y(alignment::Vertical::Center)
+    );
+
+    // Weekday headers - use iterator to avoid repetition
     for weekday in WEEKDAYS_FULL {
         header_row = header_row.push(
             container(widget::text(weekday).size(FONT_SIZE_MEDIUM))
@@ -26,9 +40,28 @@ pub fn render_month_view(
 
     grid = grid.push(header_row);
 
+    // Get week numbers for the month
+    let week_numbers = calendar_state.week_numbers();
+
     // Use pre-calculated weeks from CalendarState cache
-    for week in &calendar_state.weeks {
+    for (week_index, week) in calendar_state.weeks.iter().enumerate() {
         let mut week_row = row().spacing(SPACING_TINY).height(Length::Fill);
+
+        // Week number cell
+        let week_number = week_numbers.get(week_index).copied().unwrap_or(0);
+        week_row = week_row.push(
+            container(
+                widget::text(format!("{}", week_number))
+                    .size(FONT_SIZE_SMALL)
+            )
+            .width(Length::Fixed(WEEK_NUMBER_WIDTH))
+            .height(Length::Fill)
+            .padding(PADDING_SMALL)
+            .center_x(Length::Fill)
+            .align_y(alignment::Vertical::Center)
+        );
+
+        // Day cells
         for day_opt in week {
             if let Some(day) = day_opt {
                 let is_today = calendar_state.is_today(*day);

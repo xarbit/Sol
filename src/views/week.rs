@@ -8,7 +8,7 @@ use crate::models::WeekState;
 use crate::ui_constants::{
     SPACING_TINY, PADDING_SMALL,
     FONT_SIZE_SMALL, FONT_SIZE_MEDIUM, BORDER_RADIUS, COLOR_DAY_CELL_BORDER,
-    HOUR_ROW_HEIGHT, TIME_LABEL_WIDTH, ALL_DAY_HEADER_HEIGHT
+    HOUR_ROW_HEIGHT, TIME_LABEL_WIDTH, ALL_DAY_HEADER_HEIGHT, WEEK_NUMBER_WIDTH
 };
 
 pub fn render_week_view(week_state: &WeekState, locale: &LocalePreferences) -> Element<'static, Message> {
@@ -35,6 +35,27 @@ fn render_all_day_section(week_state: &WeekState) -> Element<'static, Message> {
         container(widget::text(""))
             .width(Length::Fixed(TIME_LABEL_WIDTH))
             .height(Length::Fixed(ALL_DAY_HEADER_HEIGHT))
+    );
+
+    // Week number display
+    header_row = header_row.push(
+        container(
+            widget::text(format!("W{}", week_state.week_number))
+                .size(FONT_SIZE_SMALL)
+        )
+        .width(Length::Fixed(WEEK_NUMBER_WIDTH))
+        .height(Length::Fixed(ALL_DAY_HEADER_HEIGHT))
+        .padding(PADDING_SMALL)
+        .center_x(Length::Fill)
+        .align_y(alignment::Vertical::Center)
+        .style(|_theme: &cosmic::Theme| container::Style {
+            border: Border {
+                width: 0.5,
+                color: COLOR_DAY_CELL_BORDER,
+                ..Default::default()
+            },
+            ..Default::default()
+        })
     );
 
     // Day headers
@@ -118,6 +139,21 @@ fn render_time_grid(locale: &LocalePreferences) -> Element<'static, Message> {
                 },
                 ..Default::default()
             })
+        );
+
+        // Week number column placeholder (empty, for alignment)
+        hour_row = hour_row.push(
+            container(widget::text(""))
+                .width(Length::Fixed(WEEK_NUMBER_WIDTH))
+                .height(Length::Fixed(HOUR_ROW_HEIGHT))
+                .style(|_theme: &cosmic::Theme| container::Style {
+                    border: Border {
+                        width: 0.5,
+                        color: COLOR_DAY_CELL_BORDER,
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                })
         );
 
         // Day columns

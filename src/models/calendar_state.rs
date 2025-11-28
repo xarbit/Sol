@@ -69,4 +69,23 @@ impl CalendarState {
     pub fn is_current_month(&self) -> bool {
         self.today.0 == self.year && self.today.1 == self.month
     }
+
+    /// Get ISO 8601 week numbers for each week in the month
+    /// Returns a vector of week numbers corresponding to each week in self.weeks
+    pub fn week_numbers(&self) -> Vec<u32> {
+        let mut week_numbers = Vec::new();
+
+        for week in &self.weeks {
+            // Find the first valid day in this week to determine the week number
+            if let Some(Some(day)) = week.iter().find(|d| d.is_some()) {
+                let date = chrono::NaiveDate::from_ymd_opt(self.year, self.month, *day).unwrap();
+                week_numbers.push(date.iso_week().week());
+            } else {
+                // Empty week (shouldn't happen, but handle gracefully)
+                week_numbers.push(0);
+            }
+        }
+
+        week_numbers
+    }
 }
