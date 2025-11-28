@@ -1,33 +1,53 @@
-use cosmic::widget::button;
-use cosmic::{widget, Element};
+use cosmic::widget::{button, menu};
+use cosmic::{widget, Apply, Element};
+use std::collections::HashMap;
 
-use crate::fl;
+use crate::menu_action::MenuAction;
 use crate::message::Message;
 use crate::ui_constants::{ICON_SEARCH, ICON_SIDEBAR};
-use crate::views::CalendarView;
 
 /// Render the left side of the header (sidebar toggle + menu items)
 pub fn render_header_start() -> Vec<Element<'static, Message>> {
+    let key_binds: HashMap<menu::KeyBind, MenuAction> = HashMap::new();
+
     vec![
         button::icon(widget::icon::from_name(ICON_SIDEBAR))
             .on_press(Message::ToggleSidebar)
             .into(),
-        widget::button::text("File")
-            .on_press(Message::NewEvent)
-            .padding([4, 12])
-            .into(),
-        widget::button::text("Edit")
-            .on_press(Message::Settings)
-            .padding([4, 12])
-            .into(),
-        widget::button::text("View")
-            .on_press(Message::ChangeView(CalendarView::Month))
-            .padding([4, 12])
-            .into(),
-        widget::button::text("Help")
-            .on_press(Message::About)
-            .padding([4, 12])
-            .into(),
+        menu::bar(vec![
+            menu::Tree::with_children(
+                menu::root("File").apply(Element::from),
+                menu::items(
+                    &key_binds,
+                    vec![
+                        menu::Item::Button("New Event", None, MenuAction::NewEvent),
+                    ],
+                ),
+            ),
+            menu::Tree::with_children(
+                menu::root("Edit").apply(Element::from),
+                menu::items(
+                    &key_binds,
+                    vec![
+                        menu::Item::Button("Settings", None, MenuAction::Settings),
+                    ],
+                ),
+            ),
+            menu::Tree::with_children(
+                menu::root("View").apply(Element::from),
+                menu::items(
+                    &key_binds,
+                    vec![
+                        menu::Item::Button("Month", None, MenuAction::ViewMonth),
+                        menu::Item::Button("Week", None, MenuAction::ViewWeek),
+                        menu::Item::Button("Day", None, MenuAction::ViewDay),
+                        menu::Item::Divider,
+                        menu::Item::Button("About Sol Calendar", None, MenuAction::About),
+                    ],
+                ),
+            ),
+        ])
+        .into(),
     ]
 }
 

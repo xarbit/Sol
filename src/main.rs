@@ -5,6 +5,7 @@ mod calendars;
 mod components;
 mod layout;
 mod localize;
+mod menu_action;
 mod message;
 mod models;
 mod storage;
