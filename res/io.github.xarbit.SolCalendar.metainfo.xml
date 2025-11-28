@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.xarbit.SolCalendar</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0</project_license>
+
+  <name>Sol Calendar</name>
+  <summary>A calendar application for the COSMIC Desktop</summary>
+
+  <description>
+    <p>
+      Sol Calendar is a modern, intuitive calendar application built for the COSMIC Desktop Environment.
+      It provides a clean interface for managing your events and appointments with support for multiple
+      calendar sources including local calendars and CalDAV.
+    </p>
+    <p>Features:</p>
+    <ul>
+      <li>Clean, Apple Calendar-inspired user interface</li>
+      <li>Month, week, and day views</li>
+      <li>Support for multiple calendars with custom colors</li>
+      <li>Local calendar storage</li>
+      <li>CalDAV synchronization support</li>
+      <li>Responsive design for desktop and mobile</li>
+      <li>Native COSMIC integration</li>
+    </ul>
+  </description>
+
+  <launchable type="desktop-id">io.github.xarbit.SolCalendar.desktop</launchable>
+
+  <url type="homepage">https://github.com/xarbit/sol</url>
+  <url type="bugtracker">https://github.com/xarbit/sol/issues</url>
+
+  <developer_name>xarbit</developer_name>
+
+  <content_rating type="oars-1.1" />
+
+  <categories>
+    <category>Office</category>
+    <category>Calendar</category>
+  </categories>
+
+  <keywords>
+    <keyword>calendar</keyword>
+    <keyword>event</keyword>
+    <keyword>appointment</keyword>
+    <keyword>reminder</keyword>
+    <keyword>schedule</keyword>
+  </keywords>
+
+  <releases>
+    <release version="0.1.0" date="2025-01-01">
+      <description>
+        <p>Initial release</p>
+        <ul>
+          <li>Month, week, and day calendar views</li>
+          <li>Multiple calendar support with custom colors</li>
+          <li>Local calendar storage</li>
+          <li>CalDAV synchronization</li>
+          <li>Responsive layout for desktop and mobile</li>
+        </ul>
+      </description>
+    </release>
+  </releases>
+
+  <screenshots>
+    <screenshot type="default">
+      <caption>Month view with sidebar</caption>
+    </screenshot>
+  </screenshots>
+
+  <requires>
+    <display_length compare="ge">360</display_length>
+  </requires>
+
+  <supports>
+    <control>pointing</control>
+    <control>keyboard</control>
+    <control>touch</control>
+  </supports>
+</component>

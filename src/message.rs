@@ -18,4 +18,6 @@ pub enum Message {
     NewEvent,
     Settings,
     About,
+    LaunchUrl(String),
+    ToggleContextDrawer,
 }

@@ -1,11 +1,14 @@
 use crate::cache::CalendarCache;
 use crate::calendars::{CalendarManager, LocalCalendar};
 use crate::components;
+use crate::fl;
 use crate::message::Message;
 use crate::storage::LocalStorage;
 use crate::views::{self, CalendarView};
 use chrono::Datelike;
 use cosmic::app::Core;
+use cosmic::iced::window;
+use cosmic::widget::{self, about};
 use cosmic::{Application, Element};
 
 const APP_ID: &str = "io.github.xarbit.SolCalendar";
@@ -24,6 +27,7 @@ pub struct CosmicCalendar {
     pub show_search: bool,
     pub color_picker_open: Option<String>,
     pub cache: CalendarCache,
+    pub about: about::About,
 }
 
 impl CosmicCalendar {
@@ -43,6 +47,13 @@ impl CosmicCalendar {
         // Initialize calendar manager with default calendars
         let calendar_manager = Self::create_default_calendars();
 
+        // Create About dialog
+        let about = about::About::default()
+            .name(fl!("app-title"))
+            .version(env!("CARGO_PKG_VERSION"))
+            .license(fl!("about-license"))
+            .links([(fl!("about-repository"), "https://github.com/xarbit/sol")]);
+
         CosmicCalendar {
             core,
             current_view: CalendarView::Month,
@@ -55,6 +66,7 @@ impl CosmicCalendar {
             show_search: false,
             color_picker_open: None,
             cache,
+            about,
         }
     }
 
@@ -167,5 +179,17 @@ impl Application for CosmicCalendar {
     fn update(&mut self, message: Self::Message) -> cosmic::app::Task<Self::Message> {
         crate::update::handle_message(self, message);
         cosmic::app::Task::none()
+    }
+
+    fn context_drawer(&self) -> Option<cosmic::app::context_drawer::ContextDrawer<'_, Self::Message>> {
+        if !self.core.window.show_context {
+            return None;
+        }
+
+        Some(cosmic::app::context_drawer::about(
+            &self.about,
+            |url| Message::LaunchUrl(url.to_string()),
+            Message::ToggleContextDrawer,
+        ))
     }
 }

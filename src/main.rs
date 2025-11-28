@@ -4,6 +4,7 @@ mod caldav;
 mod calendars;
 mod components;
 mod layout;
+mod localize;
 mod message;
 mod models;
 mod storage;
@@ -17,5 +18,8 @@ use cosmic::app::Settings;
 
 /// Application entry point
 pub fn main() -> cosmic::iced::Result {
+    // Initialize localization system
+    localize::init();
+
     cosmic::app::run::<CosmicCalendar>(Settings::default(), ())
 }

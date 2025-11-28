@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Sol Calendar
+GenericName=Calendar
+Comment=A calendar application for the COSMIC Desktop
+Categories=Office;Calendar;
+Exec=sol-calendar
+Icon=io.github.xarbit.SolCalendar
+Terminal=false
+StartupNotify=true
+StartupWMClass=sol-calendar
+Keywords=calendar;event;appointment;reminder;

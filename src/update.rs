@@ -53,8 +53,14 @@ pub fn handle_message(app: &mut CosmicCalendar, message: Message) {
             println!("Settings requested");
         }
         Message::About => {
-            // TODO: Show about dialog
-            println!("About requested");
+            app.core.window.show_context = !app.core.window.show_context;
+        }
+        Message::LaunchUrl(url) => {
+            // Open URL in default browser
+            let _ = open::that(&url);
+        }
+        Message::ToggleContextDrawer => {
+            app.core.window.show_context = !app.core.window.show_context;
         }
     }
 }

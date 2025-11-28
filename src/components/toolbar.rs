@@ -2,6 +2,7 @@ use cosmic::iced::Length;
 use cosmic::widget::{button, container, row};
 use cosmic::{widget, Element};
 
+use crate::fl;
 use crate::message::Message;
 use crate::ui_constants::{ICON_NEXT, ICON_PREVIOUS};
 use crate::views::CalendarView;
@@ -13,7 +14,7 @@ pub fn render_toolbar<'a>(
 ) -> Element<'a, Message> {
     let toolbar_left = row()
         .spacing(8)
-        .push(widget::button::standard("Today").on_press(Message::Today))
+        .push(widget::button::standard(fl!("nav-today")).on_press(Message::Today))
         .push(
             button::icon(widget::icon::from_name(ICON_PREVIOUS))
                 .on_press(Message::PreviousPeriod)
@@ -42,23 +43,23 @@ fn render_view_switcher(current_view: CalendarView) -> Element<'static, Message>
         .spacing(4)
         .push(
             if current_view == CalendarView::Day {
-                widget::button::suggested("Day").on_press(Message::ChangeView(CalendarView::Day))
+                widget::button::suggested(fl!("view-day")).on_press(Message::ChangeView(CalendarView::Day))
             } else {
-                widget::button::standard("Day").on_press(Message::ChangeView(CalendarView::Day))
+                widget::button::standard(fl!("view-day")).on_press(Message::ChangeView(CalendarView::Day))
             }
         )
         .push(
             if current_view == CalendarView::Week {
-                widget::button::suggested("Week").on_press(Message::ChangeView(CalendarView::Week))
+                widget::button::suggested(fl!("view-week")).on_press(Message::ChangeView(CalendarView::Week))
             } else {
-                widget::button::standard("Week").on_press(Message::ChangeView(CalendarView::Week))
+                widget::button::standard(fl!("view-week")).on_press(Message::ChangeView(CalendarView::Week))
             }
         )
         .push(
             if current_view == CalendarView::Month {
-                widget::button::suggested("Month").on_press(Message::ChangeView(CalendarView::Month))
+                widget::button::suggested(fl!("view-month")).on_press(Message::ChangeView(CalendarView::Month))
             } else {
-                widget::button::standard("Month").on_press(Message::ChangeView(CalendarView::Month))
+                widget::button::standard(fl!("view-month")).on_press(Message::ChangeView(CalendarView::Month))
             }
         )
         .into()

@@ -1,0 +1,11 @@
+# i18n configuration for Sol Calendar
+
+# Fallback language (English)
+fallback_language = "en"
+
+# Fluent configuration
+[fluent]
+# Assets directory containing translations
+assets_dir = "i18n"
+# Fallback locale
+fallback_language = "en"

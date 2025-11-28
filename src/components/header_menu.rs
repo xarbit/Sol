@@ -1,6 +1,7 @@
 use cosmic::widget::button;
 use cosmic::{widget, Element};
 
+use crate::fl;
 use crate::message::Message;
 use crate::ui_constants::{ICON_SEARCH, ICON_SIDEBAR};
 use crate::views::CalendarView;

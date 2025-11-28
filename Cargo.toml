@@ -8,11 +8,44 @@ repository = "https://github.com/xarbit/sol"
 authors = ["xarbit"]
 
 [dependencies]
-libcosmic = { git = "https://github.com/pop-os/libcosmic.git", default-features = false, features = ["wayland", "winit", "tokio"] }
+# COSMIC framework with all recommended features
+libcosmic = { git = "https://github.com/pop-os/libcosmic.git", default-features = false, features = [
+    "a11y",           # Accessibility support
+    "about",          # About dialog widget
+    "dbus-config",    # Config file change watching via cosmic-settings-daemon
+    "multi-window",   # Support for additional windows
+    "single-instance",# Prevent multiple app instances
+    "tokio",          # Tokio async runtime
+    "wayland",        # Wayland support
+    "winit",          # Windowing system
+    "wgpu",           # GPU-accelerated rendering
+] }
+
+# Async runtime
 tokio = { version = "1.41", features = ["full"] }
+futures-util = "0.3"
+
+# Date/Time handling
 chrono = { version = "0.4", features = ["serde"] }
+
+# Calendar formats
 icalendar = "0.16"
+
+# HTTP client for CalDAV
 reqwest = { version = "0.12", features = ["blocking"] }
+
+# Serialization
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+
+# System directories
 dirs = "5.0"
+
+# Internationalization
+i18n-embed = { version = "0.16", features = ["fluent-system", "desktop-requester"] }
+i18n-embed-fl = "0.10"
+rust-embed = "8.8"
+lazy_static = "1.5"
+
+# Open URLs/files
+open = "5.3"
