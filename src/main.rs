@@ -1,3 +1,4 @@
+mod cache;
 mod caldav;
 mod components;
 mod message;
@@ -5,6 +6,7 @@ mod models;
 mod storage;
 mod views;
 
+use cache::CalendarCache;
 use chrono::Datelike;
 use cosmic::app::{Core, Settings};
 use cosmic::iced::{alignment, Background, Border, Color, Length, Shadow, Vector};
@@ -12,7 +14,6 @@ use cosmic::iced::widget::stack;
 use cosmic::widget::{self, button, column, container, divider, row};
 use cosmic::{Application, Element};
 use message::Message;
-use models::CalendarState;
 use storage::LocalStorage;
 use views::CalendarView;
 
@@ -32,10 +33,8 @@ struct CosmicCalendar {
     storage: LocalStorage,
     show_sidebar: bool,
     show_search: bool,
-    // Cache calendar state to avoid recalculating on every render
-    calendar_cache: Option<CalendarState>,
-    // Cache formatted month string to avoid chrono formatting on every render
-    cached_period_text: String,
+    // Centralized cache for calendar states and formatted text
+    cache: CalendarCache,
 }
 
 impl Default for CosmicCalendar {
@@ -47,9 +46,8 @@ impl Default for CosmicCalendar {
         let year = now.year();
         let month = now.month();
 
-        // Pre-format the period text
-        let date = chrono::NaiveDate::from_ymd_opt(year, month, 1).unwrap();
-        let period_text = format!("{}", date.format("%B %Y"));
+        // Create cache with current month
+        let cache = CalendarCache::new(year, month);
 
         CosmicCalendar {
             core: Core::default(),
@@ -60,8 +58,7 @@ impl Default for CosmicCalendar {
             storage,
             show_sidebar: true,
             show_search: false,
-            calendar_cache: Some(CalendarState::new(year, month)),
-            cached_period_text: period_text,
+            cache,
         }
     }
 }
@@ -88,9 +85,9 @@ impl Application for CosmicCalendar {
         let year = now.year();
         let month = now.month();
 
-        // Pre-format the period text
-        let date = chrono::NaiveDate::from_ymd_opt(year, month, 1).unwrap();
-        let period_text = format!("{}", date.format("%B %Y"));
+        // Create cache and pre-cache surrounding months
+        let mut cache = CalendarCache::new(year, month);
+        cache.precache_surrounding(1, 2); // Pre-cache 1 month before, 2 months after
 
         let app = CosmicCalendar {
             core,
@@ -101,8 +98,7 @@ impl Application for CosmicCalendar {
             storage,
             show_sidebar: true,
             show_search: false,
-            calendar_cache: Some(CalendarState::new(year, month)),
-            cached_period_text: period_text,
+            cache,
         };
         (app, cosmic::app::Task::none())
     }
@@ -205,8 +201,9 @@ impl Application for CosmicCalendar {
                         } else {
                             self.current_month -= 1;
                         }
-                        // Update cache after month change
-                        self.update_cache();
+                        // Update cache and pre-cache surrounding months
+                        self.cache.set_current(self.current_year, self.current_month);
+                        self.cache.precache_surrounding(1, 2);
                     }
                     CalendarView::Week => {
                         // Week navigation logic
@@ -225,8 +222,9 @@ impl Application for CosmicCalendar {
                         } else {
                             self.current_month += 1;
                         }
-                        // Update cache after month change
-                        self.update_cache();
+                        // Update cache and pre-cache surrounding months
+                        self.cache.set_current(self.current_year, self.current_month);
+                        self.cache.precache_surrounding(1, 2);
                     }
                     CalendarView::Week => {
                         // Week navigation logic
@@ -241,8 +239,9 @@ impl Application for CosmicCalendar {
                 self.current_year = now.year();
                 self.current_month = now.month();
                 self.selected_day = Some(now.day());
-                // Update cache after date change
-                self.update_cache();
+                // Update cache and pre-cache surrounding months
+                self.cache.set_current(self.current_year, self.current_month);
+                self.cache.precache_surrounding(1, 2);
             }
             Message::SelectDay(day) => {
                 self.selected_day = Some(day);
@@ -287,41 +286,14 @@ impl Application for CosmicCalendar {
 }
 
 impl CosmicCalendar {
-    /// Update calendar cache if month/year changed
-    fn update_cache(&mut self) {
-        let needs_update = self.calendar_cache.as_ref().map_or(true, |cache| {
-            cache.year != self.current_year || cache.month != self.current_month
-        });
-
-        if needs_update {
-            self.calendar_cache = Some(CalendarState::new(self.current_year, self.current_month));
-
-            // Also update cached period text
-            let date = chrono::NaiveDate::from_ymd_opt(self.current_year, self.current_month, 1).unwrap();
-            self.cached_period_text = format!("{}", date.format("%B %Y"));
-        }
-    }
-
-    /// Get or create calendar cache
-    #[allow(dead_code)] // Helper method for mutable access to cache
-    fn get_cache(&mut self) -> &CalendarState {
-        self.update_cache();
-        self.calendar_cache.as_ref().unwrap()
-    }
-
     fn render_sidebar(&self) -> Element<'_, Message> {
-        // Use cached calendar state and views module
-        if let Some(ref cache) = self.calendar_cache {
-            views::render_sidebar(cache, self.selected_day)
-        } else {
-            // Fallback if cache not available (shouldn't happen)
-            container(widget::text("Loading sidebar...")).into()
-        }
+        // Use calendar cache module
+        views::render_sidebar(self.cache.current_state(), self.selected_day)
     }
 
     fn render_main_content(&self) -> Element<'_, Message> {
-        // Toolbar - use cached period text to avoid chrono formatting on every render
-        let period_text = &self.cached_period_text;
+        // Toolbar - use cached period text from cache module
+        let period_text = self.cache.current_period_text();
 
         let toolbar_left = row()
             .spacing(8)
@@ -370,13 +342,8 @@ impl CosmicCalendar {
 
         let calendar_view = match self.current_view {
             CalendarView::Month => {
-                // Use cached calendar state
-                if let Some(ref cache) = self.calendar_cache {
-                    views::render_month_view(cache, self.selected_day)
-                } else {
-                    // Fallback if cache not available (shouldn't happen)
-                    container(widget::text("Loading...")).into()
-                }
+                // Use calendar cache module
+                views::render_month_view(self.cache.current_state(), self.selected_day)
             },
             CalendarView::Week => self.render_week_view(),
             CalendarView::Day => self.render_day_view(),

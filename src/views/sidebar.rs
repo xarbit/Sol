@@ -1,5 +1,5 @@
 use cosmic::iced::Length;
-use cosmic::widget::{column, container, divider, row, scrollable, vertical_space};
+use cosmic::widget::{column, container, divider, row, scrollable};
 use cosmic::{widget, Element};
 
 use crate::components::render_mini_calendar;
