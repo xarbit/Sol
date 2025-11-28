@@ -1,9 +1,10 @@
 use crate::app::CosmicCalendar;
 use crate::message::Message;
 use crate::views::CalendarView;
+use cosmic::app::Task;
 
 /// Handle all application messages and update state
-pub fn handle_message(app: &mut CosmicCalendar, message: Message) {
+pub fn handle_message(app: &mut CosmicCalendar, message: Message) -> Task<Message> {
     match message {
         Message::ChangeView(view) => {
             app.current_view = view;
@@ -62,7 +63,14 @@ pub fn handle_message(app: &mut CosmicCalendar, message: Message) {
         Message::ToggleContextDrawer => {
             app.core.window.show_context = !app.core.window.show_context;
         }
+        Message::Surface(action) => {
+            return cosmic::task::message(cosmic::Action::Cosmic(
+                cosmic::app::Action::Surface(action),
+            ));
+        }
     }
+
+    Task::none()
 }
 
 /// Handle previous period navigation based on current view

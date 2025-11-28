@@ -20,4 +20,5 @@ pub enum Message {
     About,
     LaunchUrl(String),
     ToggleContextDrawer,
+    Surface(cosmic::surface::Action),
 }

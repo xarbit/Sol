@@ -209,7 +209,7 @@ impl Application for CosmicCalendar {
     }
 
     fn header_start(&self) -> Vec<Element<'_, Self::Message>> {
-        components::render_header_start(&self.key_binds)
+        components::render_header_start(&self.core, &self.key_binds)
     }
 
     fn header_end(&self) -> Vec<Element<'_, Self::Message>> {
@@ -221,8 +221,7 @@ impl Application for CosmicCalendar {
     }
 
     fn update(&mut self, message: Self::Message) -> cosmic::app::Task<Self::Message> {
-        crate::update::handle_message(self, message);
-        cosmic::app::Task::none()
+        crate::update::handle_message(self, message)
     }
 
     fn context_drawer(&self) -> Option<cosmic::app::context_drawer::ContextDrawer<'_, Self::Message>> {
