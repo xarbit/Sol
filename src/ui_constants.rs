@@ -4,6 +4,11 @@
 pub const SIDEBAR_WIDTH: f32 = 280.0;
 pub const MINI_CALENDAR_DAY_BUTTON_SIZE: f32 = 32.0;
 
+// Calendar view dimensions
+pub const HOUR_ROW_HEIGHT: f32 = 60.0; // Height of each hour slot in week/day views
+pub const TIME_LABEL_WIDTH: f32 = 60.0; // Width of the time labels column
+pub const ALL_DAY_HEADER_HEIGHT: f32 = 40.0; // Height of all-day events section
+
 // Menu bar dimensions (COSMIC standard)
 pub const MENU_ITEM_HEIGHT: u16 = 40;
 pub const MENU_ITEM_WIDTH: u16 = 240;
