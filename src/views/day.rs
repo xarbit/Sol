@@ -2,6 +2,7 @@ use cosmic::iced::{alignment, Border, Length};
 use cosmic::widget::{column, container, row, scrollable};
 use cosmic::{widget, Element};
 
+use crate::locale::LocalePreferences;
 use crate::message::Message;
 use crate::models::DayState;
 use crate::ui_constants::{
@@ -10,9 +11,9 @@ use crate::ui_constants::{
     HOUR_ROW_HEIGHT, TIME_LABEL_WIDTH, ALL_DAY_HEADER_HEIGHT
 };
 
-pub fn render_day_view(day_state: &DayState) -> Element<'static, Message> {
+pub fn render_day_view(day_state: &DayState, locale: &LocalePreferences) -> Element<'static, Message> {
     let all_day_section = render_all_day_section(day_state);
-    let time_grid = render_time_grid(day_state);
+    let time_grid = render_time_grid(locale);
 
     let content = column()
         .spacing(0)
@@ -89,23 +90,15 @@ fn render_all_day_section(day_state: &DayState) -> Element<'static, Message> {
 }
 
 /// Render the main time grid with hourly slots
-fn render_time_grid(_day_state: &DayState) -> Element<'static, Message> {
+fn render_time_grid(locale: &LocalePreferences) -> Element<'static, Message> {
     let mut grid = column().spacing(0);
 
     // Render 24 hours
     for hour in 0..24 {
         let mut hour_row = row().spacing(0);
 
-        // Time label
-        let time_label = if hour == 0 {
-            "12 AM".to_string()
-        } else if hour < 12 {
-            format!("{} AM", hour)
-        } else if hour == 12 {
-            "12 PM".to_string()
-        } else {
-            format!("{} PM", hour - 12)
-        };
+        // Time label - use locale-aware formatting
+        let time_label = locale.format_hour(hour);
 
         hour_row = hour_row.push(
             container(

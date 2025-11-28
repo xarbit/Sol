@@ -4,6 +4,7 @@ mod caldav;
 mod calendars;
 mod components;
 mod layout;
+mod locale;
 mod localize;
 mod menu_action;
 mod message;

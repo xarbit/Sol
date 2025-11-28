@@ -19,7 +19,7 @@ pub fn handle_message(app: &mut CosmicCalendar, message: Message) -> Task<Messag
         Message::Today => {
             match app.current_view {
                 CalendarView::Week => {
-                    app.week_state = WeekState::current();
+                    app.week_state = WeekState::current_with_first_day(app.locale.first_day_of_week);
                 }
                 CalendarView::Day => {
                     app.day_state = DayState::current();

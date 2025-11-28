@@ -2,6 +2,7 @@ use crate::cache::CalendarCache;
 use crate::calendars::{CalendarManager, LocalCalendar};
 use crate::components;
 use crate::fl;
+use crate::locale::LocalePreferences;
 use crate::menu_action::MenuAction;
 use crate::message::Message;
 use crate::models::{WeekState, DayState};
@@ -32,6 +33,7 @@ pub struct CosmicCalendar {
     pub cache: CalendarCache,
     pub week_state: WeekState,
     pub day_state: DayState,
+    pub locale: LocalePreferences,
     pub about: about::About,
     pub key_binds: HashMap<menu::KeyBind, MenuAction>,
 }
@@ -59,6 +61,9 @@ impl CosmicCalendar {
             .version(env!("CARGO_PKG_VERSION"))
             .license(fl!("about-license"))
             .links([(fl!("about-repository"), "https://github.com/xarbit/sol")]);
+
+        // Detect system locale preferences
+        let locale = LocalePreferences::detect_from_system();
 
         // Initialize keyboard shortcuts
         let mut key_binds = HashMap::new();
@@ -111,8 +116,9 @@ impl CosmicCalendar {
             show_search: false,
             color_picker_open: None,
             cache,
-            week_state: WeekState::current(),
+            week_state: WeekState::current_with_first_day(locale.first_day_of_week),
             day_state: DayState::current(),
+            locale,
             about,
             key_binds,
         }
@@ -184,7 +190,7 @@ impl CosmicCalendar {
 
     /// Render the main content area (toolbar + calendar view)
     pub fn render_main_content(&self) -> Element<'_, Message> {
-        views::render_main_content(&self.cache, &self.week_state, &self.day_state, self.current_view, self.selected_day)
+        views::render_main_content(&self.cache, &self.week_state, &self.day_state, &self.locale, self.current_view, self.selected_day)
     }
 }
 

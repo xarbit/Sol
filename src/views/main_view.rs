@@ -4,6 +4,7 @@ use cosmic::Element;
 
 use crate::cache::CalendarCache;
 use crate::components;
+use crate::locale::LocalePreferences;
 use crate::message::Message;
 use crate::models::{WeekState, DayState};
 use crate::views::{self, CalendarView};
@@ -13,6 +14,7 @@ pub fn render_main_content<'a>(
     cache: &'a CalendarCache,
     week_state: &'a WeekState,
     day_state: &'a DayState,
+    locale: &'a LocalePreferences,
     current_view: CalendarView,
     selected_day: Option<u32>,
 ) -> Element<'a, Message> {
@@ -27,8 +29,8 @@ pub fn render_main_content<'a>(
     // Render current calendar view
     let calendar_view = match current_view {
         CalendarView::Month => views::render_month_view(cache.current_state(), selected_day),
-        CalendarView::Week => views::render_week_view(week_state),
-        CalendarView::Day => views::render_day_view(day_state),
+        CalendarView::Week => views::render_week_view(week_state, locale),
+        CalendarView::Day => views::render_day_view(day_state, locale),
     };
 
     column()
