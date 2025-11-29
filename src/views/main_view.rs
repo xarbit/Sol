@@ -1,3 +1,4 @@
+use chrono::NaiveDate;
 use cosmic::iced::Length;
 use cosmic::widget::{column, divider};
 use cosmic::Element;
@@ -17,7 +18,7 @@ pub fn render_main_content<'a>(
     year_state: &'a YearState,
     locale: &'a LocalePreferences,
     current_view: CalendarView,
-    selected_day: Option<u32>,
+    selected_date: Option<NaiveDate>,
     show_week_numbers: bool,
     month_events: Option<MonthViewEvents<'a>>,
 ) -> Element<'a, Message> {
@@ -34,7 +35,7 @@ pub fn render_main_content<'a>(
     // Render current calendar view
     let calendar_view = match current_view {
         CalendarView::Year => views::render_year_view(year_state, locale),
-        CalendarView::Month => views::render_month_view(cache.current_state(), selected_day, locale, show_week_numbers, month_events),
+        CalendarView::Month => views::render_month_view(cache.current_state(), selected_date, locale, show_week_numbers, month_events),
         CalendarView::Week => views::render_week_view(week_state, locale),
         CalendarView::Day => views::render_day_view(day_state, locale),
     };

@@ -5,7 +5,7 @@ use cosmic::{widget, Element};
 
 use crate::components::{render_events_column, render_quick_event_input, DisplayEvent};
 use crate::message::Message;
-use crate::styles::{today_circle_style, selected_day_style, day_cell_style};
+use crate::styles::{today_circle_style, selected_day_style, day_cell_style, adjacent_month_day_style, adjacent_month_selected_style};
 use crate::ui_constants::{PADDING_DAY_CELL, SPACING_TINY, SPACING_SMALL};
 
 /// Size of the circle behind today's day number
@@ -39,6 +39,8 @@ pub struct DayCellConfig {
     pub is_today: bool,
     pub is_selected: bool,
     pub is_weekend: bool,
+    /// Whether this day is from an adjacent month (shown grayed out)
+    pub is_adjacent_month: bool,
     pub events: Vec<DisplayEvent>,
     /// If Some, show quick event input with (editing_text, calendar_color)
     pub quick_event: Option<(String, String)>,
@@ -48,8 +50,8 @@ pub struct DayCellConfig {
 pub fn render_day_cell_with_events(config: DayCellConfig) -> Element<'static, Message> {
     let date = NaiveDate::from_ymd_opt(config.year, config.month, config.day);
 
-    // Day number - with circle background if today
-    let day_number: Element<'static, Message> = if config.is_today {
+    // Day number - with circle background if today (only for current month)
+    let day_number: Element<'static, Message> = if config.is_today && !config.is_adjacent_month {
         // Today: blue circle behind the day number
         container(
             widget::text(config.day.to_string())
@@ -101,19 +103,46 @@ pub fn render_day_cell_with_events(config: DayCellConfig) -> Element<'static, Me
         content = content.push(events_container);
     }
 
-    // Build styled container based on state (selected gets border)
-    let styled_container = apply_day_cell_style(
-        content,
-        config.is_selected,
-        config.is_weekend,
-    );
+    // Build styled container based on state
+    let styled_container = if config.is_adjacent_month {
+        // Adjacent month: grayed out style, but still show selection border if selected
+        if config.is_selected {
+            container(content)
+                .padding(PADDING_DAY_CELL)
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .style(|theme: &cosmic::Theme| adjacent_month_selected_style(theme))
+        } else {
+            container(content)
+                .padding(PADDING_DAY_CELL)
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .style(|_theme: &cosmic::Theme| adjacent_month_day_style())
+        }
+    } else {
+        // Current month: normal styling (selected gets border)
+        apply_day_cell_style(
+            content,
+            config.is_selected,
+            config.is_weekend,
+        )
+    };
 
-    // Double-click to create quick event, single click to select
+    // Handle mouse interactions
     if let Some(date) = date {
-        mouse_area(styled_container)
-            .on_press(Message::SelectDay(config.year, config.month, config.day))
-            .on_double_click(Message::StartQuickEvent(date))
-            .into()
+        if config.is_adjacent_month {
+            // Adjacent month days: select without navigating, double-click to create event
+            mouse_area(styled_container)
+                .on_press(Message::SelectDayNoNavigate(date))
+                .on_double_click(Message::StartQuickEvent(date))
+                .into()
+        } else {
+            // Current month days: single click to select (and navigate if needed), double-click to create quick event
+            mouse_area(styled_container)
+                .on_press(Message::SelectDay(config.year, config.month, config.day))
+                .on_double_click(Message::StartQuickEvent(date))
+                .into()
+        }
     } else {
         styled_container.into()
     }
@@ -158,3 +187,4 @@ pub fn render_day_cell(
         .on_press(Message::SelectDay(year, month, day))
         .into()
 }
+

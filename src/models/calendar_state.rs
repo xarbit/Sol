@@ -1,12 +1,24 @@
 use chrono::Datelike;
 use crate::localized_names;
 
+/// Represents a day in the calendar grid with full date info
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct CalendarDay {
+    pub year: i32,
+    pub month: u32,
+    pub day: u32,
+    /// Whether this day is from the currently displayed month
+    pub is_current_month: bool,
+}
+
 /// Cached calendar state to avoid recalculating on every render
 #[derive(Debug, Clone, PartialEq)]
 pub struct CalendarState {
     pub year: i32,
     pub month: u32,
     pub weeks: Vec<Vec<Option<u32>>>,
+    /// Full weeks including adjacent month days for display
+    pub weeks_full: Vec<Vec<CalendarDay>>,
     pub today: (i32, u32, u32), // (year, month, day)
     pub month_year_text: String, // Pre-formatted "Month Year" text
 }
@@ -28,26 +40,78 @@ impl CalendarState {
                 .num_days()
         };
 
-        let mut weeks = vec![];
-        let mut current_week = vec![];
+        // Calculate previous month info
+        let (prev_year, prev_month) = if month == 1 {
+            (year - 1, 12)
+        } else {
+            (year, month - 1)
+        };
+        let prev_month_days = if month == 1 {
+            chrono::NaiveDate::from_ymd_opt(year - 1, 12, 31).unwrap().day()
+        } else {
+            chrono::NaiveDate::from_ymd_opt(year, month, 1)
+                .unwrap()
+                .pred_opt()
+                .unwrap()
+                .day()
+        };
 
-        for _ in 0..first_weekday {
+        // Calculate next month info
+        let (next_year, next_month) = if month == 12 {
+            (year + 1, 1)
+        } else {
+            (year, month + 1)
+        };
+
+        let mut weeks = vec![];
+        let mut weeks_full = vec![];
+        let mut current_week = vec![];
+        let mut current_week_full = vec![];
+
+        // Fill in previous month days
+        for i in 0..first_weekday {
             current_week.push(None);
+            let prev_day = prev_month_days - (first_weekday - 1 - i);
+            current_week_full.push(CalendarDay {
+                year: prev_year,
+                month: prev_month,
+                day: prev_day,
+                is_current_month: false,
+            });
         }
 
+        // Fill in current month days
         for day in 1..=days_in_month {
             current_week.push(Some(day as u32));
+            current_week_full.push(CalendarDay {
+                year,
+                month,
+                day: day as u32,
+                is_current_month: true,
+            });
             if current_week.len() == 7 {
                 weeks.push(current_week.clone());
+                weeks_full.push(current_week_full.clone());
                 current_week.clear();
+                current_week_full.clear();
             }
         }
 
+        // Fill in next month days
         if !current_week.is_empty() {
+            let mut next_day = 1u32;
             while current_week.len() < 7 {
                 current_week.push(None);
+                current_week_full.push(CalendarDay {
+                    year: next_year,
+                    month: next_month,
+                    day: next_day,
+                    is_current_month: false,
+                });
+                next_day += 1;
             }
             weeks.push(current_week);
+            weeks_full.push(current_week_full);
         }
 
         let today = chrono::Local::now();
@@ -58,6 +122,7 @@ impl CalendarState {
             year,
             month,
             weeks,
+            weeks_full,
             today: (today.year(), today.month(), today.day()),
             month_year_text,
         }

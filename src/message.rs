@@ -12,6 +12,8 @@ pub enum Message {
     NextPeriod,
     Today,
     SelectDay(i32, u32, u32), // (year, month, day)
+    /// Select a day without navigating away from current month view (for adjacent month days)
+    SelectDayNoNavigate(NaiveDate),
 
     // UI state
     ToggleSidebar,

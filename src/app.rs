@@ -147,8 +147,8 @@ pub struct CosmicCalendar {
     pub selected_calendar_id: Option<String>,
     /// Quick event being edited: (date, event_text) - None when not editing
     pub quick_event_editing: Option<(NaiveDate, String)>,
-    /// Cached events for current month view, grouped by day
-    pub cached_month_events: std::collections::HashMap<u32, Vec<crate::components::DisplayEvent>>,
+    /// Cached events for current month view, grouped by date (supports adjacent months)
+    pub cached_month_events: std::collections::HashMap<chrono::NaiveDate, Vec<crate::components::DisplayEvent>>,
     /// Color of the selected calendar (cached for quick event input)
     pub selected_calendar_color: String,
     /// Calendar dialog state (for Create/Edit) - None when dialog is closed
@@ -334,25 +334,13 @@ impl CosmicCalendar {
 
     /// Render the main content area (toolbar + calendar view)
     pub fn render_main_content(&self) -> Element<'_, Message> {
-        // For month view, only show selection if we're viewing the month containing selected_date
-        let selected_day = {
-            let cache_state = self.cache.current_state();
-            if cache_state.year == self.selected_date.year()
-                && cache_state.month == self.selected_date.month()
-            {
-                Some(self.selected_date.day())
-            } else {
-                None
-            }
-        };
-
         // Build month events with quick event state if editing
         let quick_event_data: Option<(chrono::NaiveDate, &str, &str)> = self.quick_event_editing
             .as_ref()
             .map(|(date, text)| (*date, text.as_str(), self.selected_calendar_color.as_str()));
 
         let month_events = views::MonthViewEvents {
-            events_by_day: &self.cached_month_events,
+            events_by_date: &self.cached_month_events,
             quick_event: quick_event_data,
         };
 
@@ -363,7 +351,7 @@ impl CosmicCalendar {
             &self.year_state,
             &self.locale,
             self.current_view,
-            selected_day,
+            Some(self.selected_date),
             self.settings.show_week_numbers,
             Some(month_events),
         )

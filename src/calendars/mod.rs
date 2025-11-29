@@ -172,10 +172,27 @@ impl CalendarManager {
             .collect()
     }
 
-    /// Get events for a specific month grouped by day, with calendar colors
-    /// Returns a HashMap where key is day number (1-31) and value is Vec of DisplayEvents
-    pub fn get_display_events_for_month(&self, year: i32, month: u32) -> HashMap<u32, Vec<DisplayEvent>> {
-        let mut events_by_day: HashMap<u32, Vec<DisplayEvent>> = HashMap::new();
+    /// Get events for a specific month grouped by date, with calendar colors.
+    /// Includes events from adjacent months that would be visible in the month view.
+    /// Returns a HashMap where key is NaiveDate and value is Vec of DisplayEvents.
+    pub fn get_display_events_for_month(&self, year: i32, month: u32) -> HashMap<chrono::NaiveDate, Vec<DisplayEvent>> {
+        use chrono::NaiveDate;
+
+        let mut events_by_date: HashMap<NaiveDate, Vec<DisplayEvent>> = HashMap::new();
+
+        // Calculate date range for the month view (includes adjacent month days visible in the grid)
+        // The grid can show up to 6 days from prev month and up to 13 days from next month
+        let first_of_month = NaiveDate::from_ymd_opt(year, month, 1).unwrap();
+
+        // Start from up to 6 days before (max days from prev month in grid)
+        let range_start = first_of_month - chrono::Duration::days(6);
+        // End up to 13 days after the month ends (max days from next month in grid)
+        let days_in_month = if month == 12 {
+            NaiveDate::from_ymd_opt(year + 1, 1, 1).unwrap().signed_duration_since(first_of_month).num_days()
+        } else {
+            NaiveDate::from_ymd_opt(year, month + 1, 1).unwrap().signed_duration_since(first_of_month).num_days()
+        };
+        let range_end = first_of_month + chrono::Duration::days(days_in_month + 13);
 
         for source in &self.sources {
             if !source.is_enabled() {
@@ -187,7 +204,8 @@ impl CalendarManager {
             if let Ok(events) = source.fetch_events() {
                 for event in events {
                     let event_date = event.start.date_naive();
-                    if event_date.year() == year && event_date.month() == month {
+                    // Include events within the visible date range
+                    if event_date >= range_start && event_date <= range_end {
                         // Extract start time for timed events
                         let start_time = if event.all_day {
                             None
@@ -206,8 +224,8 @@ impl CalendarManager {
                             all_day: event.all_day,
                             start_time,
                         };
-                        events_by_day
-                            .entry(event_date.day())
+                        events_by_date
+                            .entry(event_date)
                             .or_default()
                             .push(display_event);
                     }
@@ -215,7 +233,7 @@ impl CalendarManager {
             }
         }
 
-        events_by_day
+        events_by_date
     }
 
     /// Sync all calendar sources

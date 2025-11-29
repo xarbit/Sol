@@ -64,6 +64,11 @@ pub fn handle_message(app: &mut CosmicCalendar, message: Message) -> Task<Messag
                 app.set_selected_date(date);
             }
         }
+        Message::SelectDayNoNavigate(date) => {
+            // Set selected date without navigating (for adjacent month days)
+            // Only updates the selected_date, doesn't sync views to that date's month
+            app.selected_date = date;
+        }
 
         // === UI State ===
         Message::ToggleSidebar => {

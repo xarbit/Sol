@@ -99,6 +99,36 @@ pub fn day_cell_style(is_weekend: bool) -> container::Style {
     }
 }
 
+/// Style for adjacent month day cells (previous/next month) - grayed out
+pub fn adjacent_month_day_style() -> container::Style {
+    container::Style {
+        background: None,
+        border: Border {
+            color: COLOR_DAY_CELL_BORDER,
+            width: BORDER_WIDTH_NORMAL,
+            radius: BORDER_RADIUS.into(),
+        },
+        // Gray text for adjacent month days
+        text_color: Some(Color::from_rgba(0.5, 0.5, 0.5, 0.5)),
+        ..Default::default()
+    }
+}
+
+/// Style for selected adjacent month day cells - grayed out text with accent border
+pub fn adjacent_month_selected_style(theme: &cosmic::Theme) -> container::Style {
+    container::Style {
+        background: None,
+        border: Border {
+            color: theme.cosmic().accent_color().into(),
+            width: BORDER_WIDTH_HIGHLIGHT,
+            radius: BORDER_RADIUS.into(),
+        },
+        // Gray text for adjacent month days (same as non-selected)
+        text_color: Some(Color::from_rgba(0.5, 0.5, 0.5, 0.5)),
+        ..Default::default()
+    }
+}
+
 /// Style for a circular color button
 pub fn color_button_style(color: Color, size: f32, border_width: f32, border_color: Color) -> container::Style {
     container::Style {
