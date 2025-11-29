@@ -2,6 +2,12 @@
 
 ![Sol Calendar](images/image1.png)
 
+![Day view](images/day.png)
+
+![Week view](images/week.png)
+
+![Year view](images/year.png)
+
 > ⚠️ **WORK IN PROGRESS** - This project is in early development and is **not ready for production use**. Many features are incomplete or missing. Use at your own risk!
 
 A modern calendar application built with [libcosmic](https://github.com/pop-os/libcosmic), featuring CalDAV support for seamless calendar synchronization.
