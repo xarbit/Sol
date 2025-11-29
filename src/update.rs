@@ -254,6 +254,8 @@ fn handle_toggle_calendar(app: &mut CosmicCalendar, id: String) {
     }
     // Save configuration after toggle
     app.calendar_manager.save_config().ok();
+    // Refresh events to show/hide events from toggled calendar
+    app.refresh_cached_events();
 }
 
 /// Change a calendar's color and save configuration
@@ -270,6 +272,10 @@ fn handle_change_calendar_color(app: &mut CosmicCalendar, id: String, color: Str
     app.calendar_manager.save_config().ok();
     // Close the color picker after selection
     app.color_picker_open = None;
+    // Refresh events to update event colors in views
+    app.refresh_cached_events();
+    // Also update selected calendar color if this was the selected calendar
+    app.update_selected_calendar_color();
 }
 
 /// Commit the quick event being edited - create a new event in the selected calendar
