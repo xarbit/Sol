@@ -19,12 +19,11 @@ pub fn render_month_view(
     // Weekday headers with week number column
     let mut header_row = row().spacing(SPACING_TINY);
 
-    // Week number header (empty)
+    // Week number header
     header_row = header_row.push(
         container(widget::text("Wk").size(FONT_SIZE_SMALL))
             .width(Length::Fixed(WEEK_NUMBER_WIDTH))
             .padding(PADDING_SMALL)
-            .center_x(Length::Fill)
             .align_y(alignment::Vertical::Center)
     );
 
@@ -57,7 +56,6 @@ pub fn render_month_view(
             .width(Length::Fixed(WEEK_NUMBER_WIDTH))
             .height(Length::Fill)
             .padding(PADDING_SMALL)
-            .center_x(Length::Fill)
             .align_y(alignment::Vertical::Center)
         );
 

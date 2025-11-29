@@ -8,7 +8,7 @@ pub const MINI_CALENDAR_DAY_BUTTON_SIZE: f32 = 32.0;
 pub const HOUR_ROW_HEIGHT: f32 = 60.0; // Height of each hour slot in week/day views
 pub const TIME_LABEL_WIDTH: f32 = 60.0; // Width of the time labels column
 pub const ALL_DAY_HEADER_HEIGHT: f32 = 40.0; // Height of all-day events section
-pub const WEEK_NUMBER_WIDTH: f32 = 40.0; // Width of week number column
+pub const WEEK_NUMBER_WIDTH: f32 = 32.0; // Width of week number column (slim)
 
 // Menu bar dimensions (COSMIC standard)
 pub const MENU_ITEM_HEIGHT: u16 = 40;
