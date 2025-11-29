@@ -3,7 +3,7 @@ use cosmic::widget::container;
 use crate::ui_constants::{
     SHADOW_OPACITY, SHADOW_OFFSET_X, SHADOW_OFFSET_Y, SHADOW_BLUR_RADIUS,
     BORDER_RADIUS, BORDER_WIDTH_HIGHLIGHT, BORDER_WIDTH_NORMAL,
-    COLOR_DAY_CELL_BORDER, COLOR_WEEKEND_BACKGROUND
+    COLOR_DAY_CELL_BORDER, COLOR_WEEKEND_BACKGROUND, COLOR_TODAY_BLUE
 };
 
 /// Style for the overlay sidebar in mobile/condensed mode
@@ -41,6 +41,7 @@ pub fn today_filled_style(theme: &cosmic::Theme) -> container::Style {
 }
 
 /// Style for today indicator in month view - outlined with accent border
+/// Now used for selected day cell
 pub fn today_outlined_style(theme: &cosmic::Theme) -> container::Style {
     container::Style {
         background: None,
@@ -53,14 +54,30 @@ pub fn today_outlined_style(theme: &cosmic::Theme) -> container::Style {
     }
 }
 
-/// Style for selected day - filled background with accent color
+/// Style for selected day cell - border with accent color
 pub fn selected_day_style(theme: &cosmic::Theme) -> container::Style {
     container::Style {
-        background: Some(Background::Color(theme.cosmic().accent_color().into())),
+        background: None,
         border: Border {
+            color: theme.cosmic().accent_color().into(),
+            width: BORDER_WIDTH_HIGHLIGHT,
             radius: BORDER_RADIUS.into(),
+        },
+        ..Default::default()
+    }
+}
+
+/// Style for today's day number circle - fixed blue background with white text
+/// Consistent across all themes for easy recognition
+pub fn today_circle_style(_theme: &cosmic::Theme, size: f32) -> container::Style {
+    container::Style {
+        background: Some(Background::Color(COLOR_TODAY_BLUE)),
+        border: Border {
+            radius: (size / 2.0).into(), // Circular
             ..Default::default()
         },
+        // White text for contrast on blue background
+        text_color: Some(Color::WHITE),
         ..Default::default()
     }
 }

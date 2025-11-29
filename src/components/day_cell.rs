@@ -5,13 +5,17 @@ use cosmic::{widget, Element};
 
 use crate::components::{render_events_column, render_quick_event_input, DisplayEvent};
 use crate::message::Message;
-use crate::styles::{today_outlined_style, selected_day_style, day_cell_style};
+use crate::styles::{today_circle_style, selected_day_style, day_cell_style};
 use crate::ui_constants::{PADDING_DAY_CELL, SPACING_TINY, SPACING_SMALL};
 
+/// Size of the circle behind today's day number
+const TODAY_CIRCLE_SIZE: f32 = 32.0;
+
 /// Apply the appropriate style to a day cell container based on state
+/// Today no longer gets special cell styling - the circle is on the day number
+/// Selected gets a border, regular cells get weekend background if applicable
 fn apply_day_cell_style<'a>(
     content: impl Into<Element<'a, Message>>,
-    is_today: bool,
     is_selected: bool,
     is_weekend: bool,
 ) -> container::Container<'a, Message, cosmic::Theme> {
@@ -20,9 +24,7 @@ fn apply_day_cell_style<'a>(
         .width(Length::Fill)
         .height(Length::Fill);
 
-    if is_today {
-        base.style(|theme: &cosmic::Theme| today_outlined_style(theme))
-    } else if is_selected {
+    if is_selected {
         base.style(|theme: &cosmic::Theme| selected_day_style(theme))
     } else {
         base.style(move |_theme: &cosmic::Theme| day_cell_style(is_weekend))
@@ -46,14 +48,25 @@ pub struct DayCellConfig {
 pub fn render_day_cell_with_events(config: DayCellConfig) -> Element<'static, Message> {
     let date = NaiveDate::from_ymd_opt(config.year, config.month, config.day);
 
-    // Day number header - right aligned
-    let day_text = if config.is_today || config.is_selected {
-        widget::text::title4(config.day.to_string())
+    // Day number - with circle background if today
+    let day_number: Element<'static, Message> = if config.is_today {
+        // Today: blue circle behind the day number
+        container(
+            widget::text(config.day.to_string())
+        )
+        .width(Length::Fixed(TODAY_CIRCLE_SIZE))
+        .height(Length::Fixed(TODAY_CIRCLE_SIZE))
+        .center_x(Length::Fixed(TODAY_CIRCLE_SIZE))
+        .center_y(Length::Fixed(TODAY_CIRCLE_SIZE))
+        .style(|theme: &cosmic::Theme| today_circle_style(theme, TODAY_CIRCLE_SIZE))
+        .into()
     } else {
-        widget::text(config.day.to_string())
+        // Regular day number
+        widget::text(config.day.to_string()).into()
     };
 
-    let header = container(day_text)
+    // Right-align the day number
+    let header = container(day_number)
         .width(Length::Fill)
         .align_x(alignment::Horizontal::Right);
 
@@ -88,10 +101,9 @@ pub fn render_day_cell_with_events(config: DayCellConfig) -> Element<'static, Me
         content = content.push(events_container);
     }
 
-    // Build styled container based on state
+    // Build styled container based on state (selected gets border)
     let styled_container = apply_day_cell_style(
         content,
-        config.is_today,
         config.is_selected,
         config.is_weekend,
     );
@@ -116,20 +128,30 @@ pub fn render_day_cell(
     is_selected: bool,
     is_weekend: bool,
 ) -> Element<'static, Message> {
-    // Day text styled based on state
-    let day_text = if is_today || is_selected {
-        widget::text::title4(day.to_string())
+    // Day number - with circle background if today
+    let day_number: Element<'static, Message> = if is_today {
+        // Today: blue circle behind the day number
+        container(
+            widget::text(day.to_string())
+        )
+        .width(Length::Fixed(TODAY_CIRCLE_SIZE))
+        .height(Length::Fixed(TODAY_CIRCLE_SIZE))
+        .center_x(Length::Fixed(TODAY_CIRCLE_SIZE))
+        .center_y(Length::Fixed(TODAY_CIRCLE_SIZE))
+        .style(|theme: &cosmic::Theme| today_circle_style(theme, TODAY_CIRCLE_SIZE))
+        .into()
     } else {
-        widget::text(day.to_string())
+        // Regular day number
+        widget::text(day.to_string()).into()
     };
 
     // Right-aligned content
-    let content = container(day_text)
+    let content = container(day_number)
         .width(Length::Fill)
         .align_x(alignment::Horizontal::Right);
 
-    // Apply consistent styling
-    let styled_container = apply_day_cell_style(content, is_today, is_selected, is_weekend);
+    // Apply consistent styling (selected gets border)
+    let styled_container = apply_day_cell_style(content, is_selected, is_weekend);
 
     // Single mouse_area wrapping the styled container
     mouse_area(styled_container)

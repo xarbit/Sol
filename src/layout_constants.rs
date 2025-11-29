@@ -31,7 +31,7 @@ pub const PADDING_MEDIUM: u16 = 12;
 pub const PADDING_STANDARD: u16 = 16;
 pub const PADDING_MONTH_GRID: u16 = 20;
 pub const PADDING_LARGE: u16 = 40;
-pub const PADDING_DAY_CELL: [u16; 4] = [4, 8, 0, 0]; // top, right, bottom, left
+pub const PADDING_DAY_CELL: [u16; 4] = [4, 8, 4, 8]; // top, right, bottom, left
 pub const PADDING_COLOR_PICKER_NESTED: [u16; 4] = [4, 0, 4, 36]; // indented color picker
 
 // Border styling
