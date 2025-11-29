@@ -37,7 +37,11 @@ pub fn render_mini_calendar(
     let mut header_row = row().spacing(SPACING_XXS);
     let weekday_names = localized_names::get_weekday_names_short();
     for weekday in weekday_names {
-        header_row = header_row.push(widget::text(weekday).width(Length::Fill).size(FONT_SIZE_SMALL));
+        header_row = header_row.push(
+            container(widget::text(weekday).size(FONT_SIZE_SMALL))
+                .width(Length::Fixed(MINI_CALENDAR_DAY_BUTTON_SIZE))
+                .center_x(Length::Fixed(MINI_CALENDAR_DAY_BUTTON_SIZE))
+        );
     }
 
     grid = grid.push(header_row);
