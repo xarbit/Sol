@@ -55,20 +55,29 @@ pub fn handle_message(app: &mut CosmicCalendar, message: Message) -> Task<Messag
             app.settings.save().ok();
         }
         Message::ToggleCalendar(id) => {
+            // Close color picker when interacting with other elements
+            app.color_picker_open = None;
             handle_toggle_calendar(app, id);
         }
         Message::SelectCalendar(id) => {
+            // Close color picker when selecting a different calendar
+            app.color_picker_open = None;
             app.selected_calendar_id = Some(id);
             app.update_selected_calendar_color();
         }
-        Message::OpenColorPicker(id) => {
-            app.color_picker_open = Some(id);
-        }
-        Message::ChangeCalendarColor(id, color) => {
-            handle_change_calendar_color(app, id, color);
+        Message::ToggleColorPicker(id) => {
+            // Toggle: if already open for this calendar, close it; otherwise open it
+            if app.color_picker_open.as_ref() == Some(&id) {
+                app.color_picker_open = None;
+            } else {
+                app.color_picker_open = Some(id);
+            }
         }
         Message::CloseColorPicker => {
             app.color_picker_open = None;
+        }
+        Message::ChangeCalendarColor(id, color) => {
+            handle_change_calendar_color(app, id, color);
         }
         Message::StartQuickEvent(date) => {
             // Start editing a quick event on the specified date
@@ -128,12 +137,15 @@ pub fn handle_message(app: &mut CosmicCalendar, message: Message) -> Task<Messag
         }
         // Calendar management messages
         Message::OpenNewCalendarDialog => {
+            app.color_picker_open = None;
             handle_open_calendar_dialog_create(app);
         }
         Message::OpenEditCalendarDialog(id) => {
+            app.color_picker_open = None;
             handle_open_calendar_dialog_edit(app, id);
         }
         Message::EditCalendarByIndex(index) => {
+            app.color_picker_open = None;
             if let Some(calendar) = app.calendar_manager.sources().get(index) {
                 let id = calendar.info().id.clone();
                 handle_open_calendar_dialog_edit(app, id);
@@ -156,12 +168,15 @@ pub fn handle_message(app: &mut CosmicCalendar, message: Message) -> Task<Messag
             app.calendar_dialog = None;
         }
         Message::DeleteSelectedCalendar => {
+            app.color_picker_open = None;
             handle_delete_selected_calendar(app);
         }
         Message::RequestDeleteCalendar(id) => {
+            app.color_picker_open = None;
             handle_request_delete_calendar(app, id);
         }
         Message::SelectCalendarByIndex(index) => {
+            app.color_picker_open = None;
             if let Some(calendar) = app.calendar_manager.sources().get(index) {
                 let id = calendar.info().id.clone();
                 app.selected_calendar_id = Some(id);
@@ -169,6 +184,7 @@ pub fn handle_message(app: &mut CosmicCalendar, message: Message) -> Task<Messag
             }
         }
         Message::DeleteCalendarByIndex(index) => {
+            app.color_picker_open = None;
             if let Some(calendar) = app.calendar_manager.sources().get(index) {
                 let id = calendar.info().id.clone();
                 handle_request_delete_calendar(app, id);

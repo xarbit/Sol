@@ -21,9 +21,12 @@ pub enum Message {
     ToggleCalendar(String),
     /// Select a calendar as the active calendar for new events
     SelectCalendar(String),
-    OpenColorPicker(String),
-    ChangeCalendarColor(String, String),
+    /// Toggle the color picker for a calendar (open if closed, close if open)
+    ToggleColorPicker(String),
+    /// Close the color picker (when clicking outside)
     CloseColorPicker,
+    /// Change a calendar's color
+    ChangeCalendarColor(String, String),
     /// Open the calendar dialog in Create mode
     OpenNewCalendarDialog,
     /// Open the calendar dialog in Edit mode for a specific calendar

@@ -11,7 +11,7 @@ use crate::ui_constants::{
     BORDER_WIDTH_HIGHLIGHT, BORDER_WIDTH_SELECTED
 };
 
-/// Predefined color palette for calendars
+/// Predefined color palette for calendars (full list with names)
 pub const CALENDAR_COLORS: &[(&str, &str)] = &[
     // Blues
     ("#3B82F6", "Blue"),
@@ -45,6 +45,19 @@ pub const CALENDAR_COLORS: &[(&str, &str)] = &[
     ("#6B7280", "Gray"),
 ];
 
+/// Quick picker color grid - 20 colors in 4 rows of 5
+/// Used by both the sidebar quick picker and the calendar dialog
+pub const QUICK_PICKER_COLORS: [[&str; 5]; 4] = [
+    // Row 1: Blues
+    ["#3B82F6", "#0EA5E9", "#2563EB", "#1E40AF", "#06B6D4"],
+    // Row 2: Purples and Pinks
+    ["#8B5CF6", "#A78BFA", "#7C3AED", "#EC4899", "#DB2777"],
+    // Row 3: Greens and Teals
+    ["#10B981", "#34D399", "#059669", "#14B8A6", "#0D9488"],
+    // Row 4: Oranges, Yellows, Reds
+    ["#F59E0B", "#FBBF24", "#F97316", "#EF4444", "#DC2626"],
+];
+
 /// Render a color indicator button
 pub fn render_color_indicator<'a>(
     calendar_id: String,
@@ -61,7 +74,7 @@ pub fn render_color_indicator<'a>(
                 color_button_style(color, size, BORDER_WIDTH_HIGHLIGHT, COLOR_BORDER_LIGHT)
             })
     )
-    .on_press(Message::OpenColorPicker(calendar_id))
+    .on_press(Message::ToggleColorPicker(calendar_id))
     .padding(0)
     .into()
 }
@@ -113,21 +126,9 @@ pub fn render_quick_color_picker<'a>(
     calendar_id: String,
     current_color: &str,
 ) -> Element<'a, Message> {
-    // 20 colors organized by category - 5 colors per row, 4 rows
-    let color_rows = [
-        // Row 1: Blues
-        ["#3B82F6", "#0EA5E9", "#2563EB", "#1E40AF", "#06B6D4"],
-        // Row 2: Purples and Pinks
-        ["#8B5CF6", "#A78BFA", "#7C3AED", "#EC4899", "#DB2777"],
-        // Row 3: Greens and Teals
-        ["#10B981", "#34D399", "#059669", "#14B8A6", "#0D9488"],
-        // Row 4: Oranges, Yellows, Reds
-        ["#F59E0B", "#FBBF24", "#F97316", "#EF4444", "#DC2626"],
-    ];
-
     let mut color_grid = column().spacing(SPACING_COLOR_GRID);
 
-    for row_colors in color_rows {
+    for row_colors in QUICK_PICKER_COLORS {
         let mut color_row = row().spacing(SPACING_COLOR_GRID);
 
         for hex in row_colors {

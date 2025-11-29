@@ -3,7 +3,7 @@ use cosmic::widget::{button, column, container, row, text, text_input};
 use cosmic::{widget, Element};
 
 use crate::app::{CalendarDialogMode, CalendarDialogState, DeleteCalendarDialogState};
-use crate::components::color_picker::parse_hex_color;
+use crate::components::color_picker::{parse_hex_color, QUICK_PICKER_COLORS};
 use crate::fl;
 use crate::message::Message;
 use crate::styles::color_button_style;
@@ -21,17 +21,10 @@ pub fn render_calendar_dialog(state: &CalendarDialogState) -> Element<'_, Messag
         .on_submit(|_| Message::ConfirmCalendarDialog)
         .width(Length::Fill);
 
-    // Color picker grid
-    let color_rows = [
-        ["#3B82F6", "#0EA5E9", "#2563EB", "#1E40AF", "#06B6D4"],
-        ["#8B5CF6", "#A78BFA", "#7C3AED", "#EC4899", "#DB2777"],
-        ["#10B981", "#34D399", "#059669", "#14B8A6", "#0D9488"],
-        ["#F59E0B", "#FBBF24", "#F97316", "#EF4444", "#DC2626"],
-    ];
-
+    // Color picker grid using shared color constant
     let mut color_grid = column().spacing(SPACING_COLOR_GRID);
 
-    for row_colors in color_rows {
+    for row_colors in QUICK_PICKER_COLORS {
         let mut color_row = row().spacing(SPACING_COLOR_GRID);
 
         for hex in row_colors {
