@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use crate::fl;
 use crate::menu_action::MenuAction;
 use crate::message::Message;
-use crate::ui_constants::{ICON_SEARCH, ICON_SIDEBAR_OPEN, ICON_SIDEBAR_CLOSED, ICON_TODAY, MENU_ITEM_HEIGHT, MENU_ITEM_WIDTH, MENU_SPACING};
+use crate::ui_constants::{ICON_ADD, ICON_SEARCH, ICON_SIDEBAR_OPEN, ICON_SIDEBAR_CLOSED, ICON_TODAY, MENU_ITEM_HEIGHT, MENU_ITEM_WIDTH, MENU_SPACING};
 
 const MENU_ID: &str = "sol-calendar-menu";
 
@@ -60,14 +60,17 @@ pub fn render_header_start<'a>(
     ]
 }
 
-/// Render the right side of the header (search and today buttons)
+/// Render the right side of the header (add, today, and search buttons)
 pub fn render_header_end() -> Vec<Element<'static, Message>> {
     vec![
-        button::icon(widget::icon::from_name(ICON_SEARCH))
-            .on_press(Message::ToggleSearch)
+        button::icon(widget::icon::from_name(ICON_ADD))
+            .on_press(Message::NewEvent)
             .into(),
         button::icon(widget::icon::from_name(ICON_TODAY))
             .on_press(Message::Today)
+            .into(),
+        button::icon(widget::icon::from_name(ICON_SEARCH))
+            .on_press(Message::ToggleSearch)
             .into(),
     ]
 }

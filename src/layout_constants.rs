@@ -64,6 +64,7 @@ pub const ICON_SIDEBAR_OPEN: &str = "navbar-open-symbolic";
 pub const ICON_SIDEBAR_CLOSED: &str = "navbar-closed-symbolic";
 pub const ICON_SEARCH: &str = "system-search-symbolic";
 pub const ICON_TODAY: &str = "x-office-calendar-symbolic";
+pub const ICON_ADD: &str = "list-add-symbolic";
 
 // Font sizes
 #[allow(dead_code)] // For future use
