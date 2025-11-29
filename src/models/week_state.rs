@@ -36,7 +36,8 @@ impl WeekState {
 
         let week_range_text = if first_day.month() == last_day.month() {
             format!(
-                "{} {} - {}, {}",
+                "W{} - {} {} - {}, {}",
+                week_number,
                 first_day.format("%b"),
                 first_day.day(),
                 last_day.day(),
@@ -44,7 +45,8 @@ impl WeekState {
             )
         } else if first_day.year() == last_day.year() {
             format!(
-                "{} {} - {} {}, {}",
+                "W{} - {} {} - {} {}, {}",
+                week_number,
                 first_day.format("%b"),
                 first_day.day(),
                 last_day.format("%b"),
@@ -53,7 +55,8 @@ impl WeekState {
             )
         } else {
             format!(
-                "{} {}, {} - {} {}, {}",
+                "W{} - {} {}, {} - {} {}, {}",
+                week_number,
                 first_day.format("%b"),
                 first_day.day(),
                 first_day.year(),
