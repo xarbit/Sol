@@ -1,5 +1,5 @@
 use crate::cache::CalendarCache;
-use crate::calendars::{CalendarManager, LocalCalendar};
+use crate::calendars::CalendarManager;
 use crate::components;
 use crate::fl;
 use crate::locale::LocalePreferences;
@@ -11,8 +11,9 @@ use crate::storage::LocalStorage;
 use crate::views::{self, CalendarView};
 use chrono::Datelike;
 use cosmic::app::Core;
-use cosmic::iced::{keyboard, keyboard::Key};
+use cosmic::iced::keyboard;
 use cosmic::widget::{about, menu};
+use cosmic::widget::menu::Action as _; // Import trait for .message() method
 use cosmic::{Application, Element};
 use std::collections::HashMap;
 
@@ -56,7 +57,7 @@ impl CosmicCalendar {
         cache.precache_surrounding(1, 2);
 
         // Initialize calendar manager with default calendars
-        let calendar_manager = Self::create_default_calendars();
+        let calendar_manager = CalendarManager::with_defaults();
 
         // Load application settings
         let settings = AppSettings::load().unwrap_or_default();
@@ -71,53 +72,8 @@ impl CosmicCalendar {
         // Detect system locale preferences
         let locale = LocalePreferences::detect_from_system();
 
-        // Initialize keyboard shortcuts
-        let mut key_binds = HashMap::new();
-
-        // New Event: Ctrl+N
-        key_binds.insert(
-            menu::KeyBind {
-                modifiers: vec![menu::key_bind::Modifier::Ctrl],
-                key: Key::Character("n".into()),
-            },
-            MenuAction::NewEvent,
-        );
-
-        // Month View: Ctrl+1
-        key_binds.insert(
-            menu::KeyBind {
-                modifiers: vec![menu::key_bind::Modifier::Ctrl],
-                key: Key::Character("1".into()),
-            },
-            MenuAction::ViewMonth,
-        );
-
-        // Week View: Ctrl+2
-        key_binds.insert(
-            menu::KeyBind {
-                modifiers: vec![menu::key_bind::Modifier::Ctrl],
-                key: Key::Character("2".into()),
-            },
-            MenuAction::ViewWeek,
-        );
-
-        // Day View: Ctrl+3
-        key_binds.insert(
-            menu::KeyBind {
-                modifiers: vec![menu::key_bind::Modifier::Ctrl],
-                key: Key::Character("3".into()),
-            },
-            MenuAction::ViewDay,
-        );
-
-        // Year View: Ctrl+4
-        key_binds.insert(
-            menu::KeyBind {
-                modifiers: vec![menu::key_bind::Modifier::Ctrl],
-                key: Key::Character("4".into()),
-            },
-            MenuAction::ViewYear,
-        );
+        // Initialize keyboard shortcuts from centralized module
+        let key_binds = crate::keyboard::init_key_binds();
 
         CosmicCalendar {
             core,
@@ -139,26 +95,6 @@ impl CosmicCalendar {
             about,
             key_binds,
         }
-    }
-
-    /// Create default calendar sources
-    fn create_default_calendars() -> CalendarManager {
-        let mut calendar_manager = CalendarManager::new();
-
-        // Add default local calendars
-        calendar_manager.add_source(Box::new(LocalCalendar::with_color(
-            "personal".to_string(),
-            "Personal".to_string(),
-            "#3B82F6".to_string(),
-        )));
-
-        calendar_manager.add_source(Box::new(LocalCalendar::with_color(
-            "work".to_string(),
-            "Work".to_string(),
-            "#8B5CF6".to_string(),
-        )));
-
-        calendar_manager
     }
 
     /// Navigate to the previous month
@@ -264,8 +200,6 @@ impl Application for CosmicCalendar {
     }
 
     fn subscription(&self) -> cosmic::iced::Subscription<Self::Message> {
-        struct KeyboardEvents;
-
         cosmic::iced::event::listen_with(|event, _status, _window_id| {
             if let cosmic::iced::Event::Keyboard(keyboard::Event::KeyPressed {
                 key,
@@ -293,29 +227,9 @@ impl Application for CosmicCalendar {
                     key: key.clone(),
                 };
 
-                // Check for Ctrl+N (New Event)
-                if matches!(key, Key::Character(ref s) if s == "n") && modifiers.control() {
-                    return Some(Message::NewEvent);
-                }
-
-                // Check for Ctrl+1 (Month View)
-                if matches!(key, Key::Character(ref s) if s == "1") && modifiers.control() {
-                    return Some(Message::ChangeView(CalendarView::Month));
-                }
-
-                // Check for Ctrl+2 (Week View)
-                if matches!(key, Key::Character(ref s) if s == "2") && modifiers.control() {
-                    return Some(Message::ChangeView(CalendarView::Week));
-                }
-
-                // Check for Ctrl+3 (Day View)
-                if matches!(key, Key::Character(ref s) if s == "3") && modifiers.control() {
-                    return Some(Message::ChangeView(CalendarView::Day));
-                }
-
-                // Check for Ctrl+4 (Year View)
-                if matches!(key, Key::Character(ref s) if s == "4") && modifiers.control() {
-                    return Some(Message::ChangeView(CalendarView::Year));
+                // Look up the action in the global keyboard shortcuts
+                if let Some(action) = crate::keyboard::get_key_binds().get(&key_bind) {
+                    return Some(action.message());
                 }
             }
             None

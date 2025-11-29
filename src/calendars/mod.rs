@@ -25,6 +25,26 @@ impl CalendarManager {
         }
     }
 
+    /// Create a new CalendarManager with default calendars
+    pub fn with_defaults() -> Self {
+        let mut manager = Self::new();
+
+        // Add default local calendars
+        manager.add_source(Box::new(LocalCalendar::with_color(
+            "personal".to_string(),
+            "Personal".to_string(),
+            "#3B82F6".to_string(),
+        )));
+
+        manager.add_source(Box::new(LocalCalendar::with_color(
+            "work".to_string(),
+            "Work".to_string(),
+            "#8B5CF6".to_string(),
+        )));
+
+        manager
+    }
+
     /// Add a calendar source to the manager
     pub fn add_source(&mut self, source: Box<dyn CalendarSource>) {
         self.sources.push(source);
