@@ -65,11 +65,34 @@ UI → Update Handlers → EventHandler (middleware) → Protocols
 - `protocols/caldav.rs` - CalDAV HTTP protocol
 
 ### Services Layer (`services/`)
-- `services/event_handler.rs` - Middleware between UI and protocols
+Service handlers centralize business logic and act as middleware between the UI/update layer and the protocol/storage layer.
+
+- `services/event_handler.rs` - Event CRUD operations
   - Routes events to correct protocol (local vs remote)
   - Validates events before saving
   - Handles sync and conflict resolution
   - Centralizes cache invalidation
+
+- `services/calendar_handler.rs` - Calendar management
+  - Create, update, delete calendars
+  - Toggle visibility, change colors
+  - Generate unique calendar IDs
+  - Validate calendar data
+
+- `services/settings_handler.rs` - Application settings
+  - Load/save settings from disk
+  - Toggle week numbers display
+  - Reset to defaults
+
+- `services/sync_handler.rs` - Synchronization
+  - Sync individual or all calendars
+  - Track sync status and errors
+  - Detect remote calendar requirements
+
+- `services/export_handler.rs` - Import/Export
+  - Export events to iCalendar (.ics) format
+  - Export single events or entire calendars
+  - Read iCalendar files (import WIP)
 
 ### Constants
 - `layout_constants.rs` - UI dimensions and spacing

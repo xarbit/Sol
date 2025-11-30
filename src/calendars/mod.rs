@@ -3,7 +3,7 @@ mod caldav_calendar;
 mod config;
 mod local_calendar;
 
-pub use calendar_source::CalendarSource;
+pub use calendar_source::{CalendarSource, CalendarType, CalendarInfo};
 pub use config::{CalendarConfig, CalendarManagerConfig};
 pub use local_calendar::LocalCalendar;
 
