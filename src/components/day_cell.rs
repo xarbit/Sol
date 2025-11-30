@@ -23,11 +23,20 @@ const EVENT_CHIP_HEIGHT: f32 = 19.0;
 /// Height of a compact event indicator (thin line without text)
 const COMPACT_EVENT_HEIGHT: f32 = 6.0;
 
+/// Height of the "+N more" overflow indicator text (full mode)
+const OVERFLOW_INDICATOR_HEIGHT: f32 = 14.0;
+
+/// Height of the "+N" overflow indicator (compact mode)
+const COMPACT_OVERFLOW_HEIGHT: f32 = 10.0;
+
 /// Minimum cell height to show full event chips (below this, use compact mode)
 const MIN_CELL_HEIGHT_FOR_FULL_EVENTS: f32 = 80.0;
 
 /// Minimum cell width to show full event chips (below this, use compact mode)
 const MIN_CELL_WIDTH_FOR_FULL_EVENTS: f32 = 80.0;
+
+/// Minimum cell height to show overflow indicator (below this, hide it)
+const MIN_CELL_HEIGHT_FOR_OVERFLOW: f32 = 50.0;
 
 /// Height reserved for day number header
 const DAY_HEADER_HEIGHT: f32 = 28.0;
@@ -39,9 +48,9 @@ const EVENT_SPACING: f32 = SPACING_TINY as f32;
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum EventDisplayMode {
     /// Full event chips with text
-    Full { max_visible: usize },
+    Full { max_visible: usize, show_overflow: bool },
     /// Compact color-only indicators (thin lines without text)
-    Compact { max_visible: usize },
+    Compact { max_visible: usize, show_overflow: bool },
 }
 
 /// Calculate the event display mode based on cell dimensions
@@ -49,17 +58,28 @@ fn calculate_display_mode(cell_size: Size) -> EventDisplayMode {
     let use_compact = cell_size.height < MIN_CELL_HEIGHT_FOR_FULL_EVENTS
         || cell_size.width < MIN_CELL_WIDTH_FOR_FULL_EVENTS;
 
+    // Whether to show overflow indicator at all
+    let show_overflow = cell_size.height >= MIN_CELL_HEIGHT_FOR_OVERFLOW;
+
     // Available height for events (cell height minus header and padding)
-    let available_height = (cell_size.height - DAY_HEADER_HEIGHT - (PADDING_DAY_CELL_VERTICAL[0] as f32 * 2.0)).max(0.0);
+    let base_available = (cell_size.height - DAY_HEADER_HEIGHT - (PADDING_DAY_CELL_VERTICAL[0] as f32 * 2.0)).max(0.0);
 
     if use_compact {
+        // Reserve space for overflow indicator if we'll show it
+        let overflow_reserve = if show_overflow { COMPACT_OVERFLOW_HEIGHT + EVENT_SPACING } else { 0.0 };
+        let available_height = (base_available - overflow_reserve).max(0.0);
+
         // Compact mode: thin lines
         let max_visible = ((available_height + EVENT_SPACING) / (COMPACT_EVENT_HEIGHT + EVENT_SPACING)).floor() as usize;
-        EventDisplayMode::Compact { max_visible: max_visible.max(1) }
+        EventDisplayMode::Compact { max_visible: max_visible.max(1), show_overflow }
     } else {
+        // Reserve space for overflow indicator if we'll show it
+        let overflow_reserve = if show_overflow { OVERFLOW_INDICATOR_HEIGHT + EVENT_SPACING } else { 0.0 };
+        let available_height = (base_available - overflow_reserve).max(0.0);
+
         // Full mode: regular event chips
         let max_visible = ((available_height + EVENT_SPACING) / (EVENT_CHIP_HEIGHT + EVENT_SPACING)).floor() as usize;
-        EventDisplayMode::Full { max_visible: max_visible.max(1) }
+        EventDisplayMode::Full { max_visible: max_visible.max(1), show_overflow }
     }
 }
 
@@ -170,7 +190,7 @@ pub fn render_day_cell_with_events(config: DayCellConfig) -> Element<'static, Me
                 let current_date = date.unwrap();
 
                 match display_mode {
-                    EventDisplayMode::Full { max_visible } => {
+                    EventDisplayMode::Full { max_visible, show_overflow } => {
                         // Full mode: unified column with placeholders followed by timed events
                         let unified = render_unified_events(
                             config.events.clone(),
@@ -188,8 +208,8 @@ pub fn render_day_cell_with_events(config: DayCellConfig) -> Element<'static, Me
                             content = content.push(events_container);
                         }
 
-                        // Show "+N more" if there are hidden events
-                        if unified.overflow_count > 0 {
+                        // Show "+N more" if there are hidden events (only if cell is tall enough)
+                        if show_overflow && unified.overflow_count > 0 {
                             content = content.push(
                                 container(
                                     widget::text(format!("+{} more", unified.overflow_count))
@@ -199,7 +219,7 @@ pub fn render_day_cell_with_events(config: DayCellConfig) -> Element<'static, Me
                             );
                         }
                     }
-                    EventDisplayMode::Compact { max_visible } => {
+                    EventDisplayMode::Compact { max_visible, show_overflow } => {
                         // Compact mode: thin color lines without text
                         let compact_events = render_compact_events(
                             config.events.clone(),
@@ -214,7 +234,8 @@ pub fn render_day_cell_with_events(config: DayCellConfig) -> Element<'static, Me
                         }
 
                         // Show overflow count as small number if there are hidden events
-                        if compact_events.overflow_count > 0 {
+                        // (only if cell is tall enough)
+                        if show_overflow && compact_events.overflow_count > 0 {
                             content = content.push(
                                 container(
                                     widget::text(format!("+{}", compact_events.overflow_count))
