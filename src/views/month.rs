@@ -32,11 +32,20 @@ const MIN_CELL_WIDTH_FOR_FULL_NAMES: f32 = 100.0;
 /// Fixed height for the weekday header row
 const WEEKDAY_HEADER_HEIGHT: f32 = 32.0;
 
-/// Height of a date event chip in the overlay
+/// Height of a date event chip in the overlay (full mode)
 const DATE_EVENT_HEIGHT: f32 = 19.0;
+
+/// Height of a compact date event indicator (thin line)
+const COMPACT_DATE_EVENT_HEIGHT: f32 = 6.0;
 
 /// Spacing between date event chips
 const DATE_EVENT_SPACING: f32 = 2.0;
+
+/// Minimum cell height to show full event chips (below this, use compact mode)
+const MIN_CELL_HEIGHT_FOR_FULL_EVENTS: f32 = 80.0;
+
+/// Minimum cell width to show full event chips (below this, use compact mode)
+const MIN_CELL_WIDTH_FOR_FULL_EVENTS: f32 = 80.0;
 
 /// Offset from top of cell to where events start (day number area)
 /// This is derived from day_cell: DAY_HEADER_HEIGHT (28) + SPACING_SMALL (4)
@@ -319,10 +328,17 @@ fn collect_date_event_segments(
 /// This renders all date events (single-day and multi-day) as spanning elements.
 /// Single-day events span only their own column.
 /// Multi-day events span across multiple columns.
+///
+/// # Arguments
+/// * `weeks` - The weeks of the month
+/// * `events_by_date` - Events grouped by date
+/// * `show_week_numbers` - Whether week numbers column is visible
+/// * `compact` - If true, render thin colored lines instead of full event chips
 fn render_date_events_overlay<'a>(
     weeks: &[Vec<CalendarDay>],
     events_by_date: &HashMap<NaiveDate, Vec<DisplayEvent>>,
     show_week_numbers: bool,
+    compact: bool,
 ) -> Option<Element<'a, Message>> {
     let segments = collect_date_event_segments(weeks, events_by_date);
 
@@ -340,6 +356,9 @@ fn render_date_events_overlay<'a>(
             .or_default()
             .push(segment);
     }
+
+    // Use appropriate height based on compact mode
+    let event_height = if compact { COMPACT_DATE_EVENT_HEIGHT } else { DATE_EVENT_HEIGHT };
 
     // Build overlay with same structure as main grid
     let mut overlay_column = column()
@@ -376,13 +395,7 @@ fn render_date_events_overlay<'a>(
                     .collect();
 
                 // Build row for this slot
-                let mut slot_row = row().spacing(SPACING_TINY).height(Length::Fixed(DATE_EVENT_HEIGHT));
-
-                // Week number area spacer (if enabled)
-                // Note: This is needed because the slot row needs to align with day cells
-                // but the week number takes space at the start of the week row
-                // We handle this by having the slot rows be children of a container that's
-                // positioned after the week number
+                let mut slot_row = row().spacing(SPACING_TINY).height(Length::Fixed(event_height));
 
                 // Sort segments by start_col to process them in order
                 let mut sorted_segs = slot_segments.clone();
@@ -402,15 +415,23 @@ fn render_date_events_overlay<'a>(
                         }
                     }
 
-                    // Render the spanning chip
+                    // Render the spanning chip (full or compact based on mode)
                     let span_cols = seg.end_col - seg.start_col + 1;
-                    let chip = render_date_event_chip(
-                        seg.summary.clone(),
-                        seg.color.clone(),
-                        seg.is_first_segment,
-                        seg.start_col == 0,  // is_event_start (left edge of this segment)
-                        seg.end_col == 6,    // is_event_end (right edge of this segment)
-                    );
+                    let chip = if compact {
+                        render_compact_date_event_chip(
+                            seg.color.clone(),
+                            seg.start_col == 0,
+                            seg.end_col == 6,
+                        )
+                    } else {
+                        render_date_event_chip(
+                            seg.summary.clone(),
+                            seg.color.clone(),
+                            seg.is_first_segment,
+                            seg.start_col == 0,
+                            seg.end_col == 6,
+                        )
+                    };
 
                     slot_row = slot_row.push(
                         container(chip)
@@ -465,6 +486,41 @@ fn render_date_events_overlay<'a>(
             .height(Length::Fill)
             .into()
     )
+}
+
+/// Render a compact date event chip (thin colored line without text)
+/// Used when cell size is too small for full event chips
+fn render_compact_date_event_chip(
+    color_hex: String,
+    is_event_start: bool,
+    is_event_end: bool,
+) -> Element<'static, Message> {
+    let color = parse_hex_color(&color_hex).unwrap_or(COLOR_DEFAULT_GRAY);
+
+    // Smaller radius for compact mode
+    let radius = 2.0;
+    let border_radius: [f32; 4] = match (is_event_start, is_event_end) {
+        (true, true) => [radius, radius, radius, radius],
+        (true, false) => [radius, 0.0, 0.0, radius],
+        (false, true) => [0.0, radius, radius, 0.0],
+        (false, false) => [0.0, 0.0, 0.0, 0.0],
+    };
+
+    container(widget::text(""))
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .style(move |_theme: &cosmic::Theme| {
+            container::Style {
+                background: Some(cosmic::iced::Background::Color(color.scale_alpha(0.6))),
+                border: cosmic::iced::Border {
+                    color: cosmic::iced::Color::TRANSPARENT,
+                    width: 0.0,
+                    radius: border_radius.into(),
+                },
+                ..Default::default()
+            }
+        })
+        .into()
 }
 
 /// Render a single date event chip for the overlay.
@@ -663,14 +719,44 @@ pub fn render_month_view<'a>(
     let mut layers: Vec<Element<'a, Message>> = vec![base.into()];
 
     // Add date events overlay (renders all date events as spanning bars)
+    // Wrapped in responsive to determine compact mode based on cell size
     if let Some(ref e) = events {
-        if let Some(date_events_overlay) = render_date_events_overlay(
-            &calendar_state.weeks_full,
-            e.events_by_date,
-            show_week_numbers,
-        ) {
-            layers.push(date_events_overlay);
-        }
+        // Clone data needed for the responsive closure
+        let weeks = calendar_state.weeks_full.clone();
+        let events_by_date = e.events_by_date.clone();
+        let week_number_offset = if show_week_numbers { WEEK_NUMBER_WIDTH } else { 0.0 };
+
+        let responsive_overlay = responsive(move |size: Size| {
+            // Calculate approximate cell width (7 days + spacing)
+            let available_for_days = size.width - week_number_offset - (SPACING_TINY as f32 * 6.0);
+            let cell_width = available_for_days / 7.0;
+
+            // Calculate approximate cell height (total height minus header, divided by weeks)
+            let num_weeks = weeks.len().max(1) as f32;
+            let available_height = size.height - WEEKDAY_HEADER_HEIGHT - (SPACING_TINY as f32 * num_weeks);
+            let cell_height = available_height / num_weeks;
+
+            // Determine if we should use compact mode
+            let compact = cell_height < MIN_CELL_HEIGHT_FOR_FULL_EVENTS
+                || cell_width < MIN_CELL_WIDTH_FOR_FULL_EVENTS;
+
+            if let Some(overlay) = render_date_events_overlay(
+                &weeks,
+                &events_by_date,
+                show_week_numbers,
+                compact,
+            ) {
+                overlay
+            } else {
+                // Return empty container if no events
+                container(widget::text(""))
+                    .width(Length::Fill)
+                    .height(Length::Fill)
+                    .into()
+            }
+        });
+
+        layers.push(responsive_overlay.into());
     }
 
     // Add quick event input overlay on top if active
