@@ -40,9 +40,26 @@ This project is in **active development**. The UI foundation is in place, but co
 
 #### Multiple View Modes
 - **Month View**: Full month calendar grid with week numbers (optional)
-- **Week View**: Week schedule with hourly time slots and all-day events section
+  - Quick event creation by clicking on day cells
+  - Multi-day event selection via drag
+  - Event chips with color coding
+- **Week View**: Week schedule with hourly time slots
+  - Side-by-side layout for overlapping events
+  - Current time indicator (red line spanning all days, dot on today)
+  - Auto-scroll to current time when entering view
+  - Time-slot drag selection for creating timed events
+  - All-day events section at the top
+  - Drag-and-drop event rescheduling
 - **Day View**: Single day detailed schedule with hourly breakdown
 - **Year View**: 12-month overview in 3×4 grid (Apple Calendar style)
+
+#### Event Management
+- Quick event creation via click or keyboard
+- Timed event creation with drag selection in week view
+- Event editing dialog with full details
+- Drag-and-drop event rescheduling (month and week views)
+- Event deletion
+- SQLite database persistence
 
 #### Navigation & Controls
 - View switcher buttons (Day/Week/Month/Year) in toolbar
@@ -51,31 +68,33 @@ This project is in **active development**. The UI foundation is in place, but co
   - `Ctrl+2` - Week View
   - `Ctrl+3` - Day View
   - `Ctrl+4` - Year View
-  - `Ctrl+N` - New Event (planned)
+  - `Ctrl+N` - New Event
+  - `T` - Jump to Today
+  - `Left/Right` - Navigate previous/next period
 
 #### Localization
 - System locale detection with fallback to English
 - Localized month and day names
 - First day of week respects locale (Monday/Sunday)
 - Week number calculation (ISO 8601)
-- Multiple languages supported (English, German, French, Ukrainian)
+- 16 languages supported (cs, da, de, el, en, es, fi, fr, it, nl, no, pl, pt, ro, sv, uk)
 
 #### Calendar Management
 - Multiple calendar support with color coding
 - Calendar visibility toggle
 - Custom color picker for calendars
+- Create, edit, and delete calendars
 - Default calendars: Personal (blue), Work (purple)
 
 ### 🚧 Work In Progress
 
-- [ ] Event creation, editing, and deletion
 - [ ] CalDAV server configuration UI
 - [ ] Active CalDAV synchronization
-- [ ] Event display in calendar views
-- [ ] Event notifications
+- [ ] Event notifications/alerts
 - [ ] Recurring events
 - [ ] Background sync
 - [ ] Search functionality
+- [ ] Event invitees
 
 ## Building
 
@@ -106,11 +125,17 @@ Sol follows the **Elm/MVU (Model-View-Update)** architecture pattern, which is s
 src/
 ├── app.rs                  # Main application state and COSMIC framework integration
 ├── main.rs                 # Entry point
-├── update.rs               # Message handling and state updates
 ├── message.rs              # Application message enum
-├── menu_action.rs          # Menu action definitions
 ├── keyboard.rs             # Centralized keyboard shortcuts
 ├── layout.rs               # Responsive layout management
+├── selection.rs            # Drag selection and event drag state
+│
+├── update/                 # Message handling (split by domain)
+│   ├── mod.rs              # Main message dispatcher
+│   ├── navigation.rs       # View navigation handlers
+│   ├── calendar.rs         # Calendar management handlers
+│   ├── event.rs            # Event CRUD handlers
+│   └── selection/          # Selection and drag handlers
 │
 ├── models/                 # Domain models and state
 │   ├── calendar_state.rs   # Month calendar state with caching
@@ -121,33 +146,44 @@ src/
 ├── views/                  # View rendering functions (pure functions)
 │   ├── main_view.rs        # Main content coordinator
 │   ├── month.rs            # Month grid view
-│   ├── week.rs             # Week schedule view
+│   ├── week.rs             # Week schedule view with time indicator
 │   ├── day.rs              # Day schedule view
 │   ├── year.rs             # Year overview
 │   └── sidebar.rs          # Sidebar layout
 │
 ├── components/             # Reusable UI components
-│   ├── day_cell.rs         # Individual day cell
+│   ├── day_cell.rs         # Individual day cell with events
 │   ├── mini_calendar.rs    # Mini calendar widget
 │   ├── calendar_list.rs    # Calendar list widget
 │   ├── color_picker.rs     # Color selection widget
 │   ├── toolbar.rs          # Navigation toolbar
+│   ├── time_grid.rs        # Hour-based time grid for week/day views
+│   ├── event_chip.rs       # Event display chips
 │   └── header_menu.rs      # Application menu bar
+│
+├── dialogs/                # Dialog management
+│   ├── mod.rs              # Dialog types and state
+│   └── manager.rs          # Dialog lifecycle management
+│
+├── services/               # Business logic services
+│   ├── calendar_handler.rs # Calendar CRUD operations
+│   ├── event_handler.rs    # Event CRUD operations
+│   └── settings_handler.rs # Settings persistence
+│
+├── database/               # Data persistence
+│   └── schema.rs           # SQLite schema and queries
 │
 ├── calendars/              # Calendar data sources
 │   ├── calendar_source.rs  # Calendar trait definition
 │   ├── local_calendar.rs   # Local calendar implementation
-│   ├── caldav_calendar.rs  # CalDAV calendar implementation
-│   └── config.rs           # Calendar configuration
+│   └── caldav_calendar.rs  # CalDAV calendar implementation (WIP)
 │
 ├── locale.rs               # Locale detection and formatting
 ├── localized_names.rs      # Localized month/day names
 ├── cache.rs                # Calendar state caching
-├── caldav.rs               # CalDAV protocol support
-├── storage.rs              # Local event storage
+├── caldav.rs               # CalDAV protocol types
 ├── settings.rs             # Persistent app settings
-├── layout_constants.rs     # UI layout dimensions and spacing
-├── color_constants.rs      # UI color values
+├── ui_constants.rs         # UI dimensions, spacing, and colors
 └── styles.rs               # Custom styles for containers
 ```
 
@@ -200,18 +236,25 @@ Users will be able to configure:
 
 ## Recent Improvements
 
-### Architecture Refactoring (Latest)
-- **Centralized keyboard shortcuts**: Single source of truth in `keyboard.rs`, eliminating duplication
-- **Split UI constants**: Separated `layout_constants.rs` and `color_constants.rs` for better organization
-- **Calendar initialization**: Moved default calendar creation to `CalendarManager::with_defaults()`
-- **Improved maintainability**: Better separation of concerns and single responsibility principle
+### Week View Polish (Latest)
+- **Current time indicator**: Red line spanning all days with dot on today's column
+- **Auto-scroll**: Week view automatically scrolls to current time on entry
+- **Timer updates**: Time indicator updates every 30 seconds
+- **Overlapping events**: Side-by-side layout for concurrent events
+- **Time-slot selection**: Drag to select time range for new timed events
+- **Event drag-and-drop**: Reschedule events by dragging to new dates
 
-### Year View Implementation
-- Apple Calendar-inspired 12-month grid layout (3×4)
-- Today highlighting with accent color
-- Localized month names
-- Proper vertical scaling for consistent month sizes
-- Keyboard shortcut: `Ctrl+4`
+### Event Management
+- **Quick event creation**: Click day cell or use keyboard shortcut
+- **Event dialog**: Full-featured editor with title, location, times, calendar selection
+- **Database persistence**: SQLite storage with automatic schema creation
+- **Event chips**: Color-coded display in month and week views
+
+### Architecture Improvements
+- **Modular update handlers**: Split `update.rs` into domain-specific modules
+- **Dialog management**: Centralized dialog state in `dialogs/manager.rs`
+- **Service layer**: Business logic separated into `services/` directory
+- **Selection state**: Unified drag selection for dates and time slots
 
 ## Contributing
 

@@ -33,8 +33,9 @@ Sol is a calendar application for the COSMIC desktop built with libcosmic (iced-
 ### Core Flow
 - `app.rs` - Main application state (`CosmicCalendar` struct) implementing `cosmic::Application` trait
 - `message.rs` - All application messages as an enum
-- `update.rs` - Message handling and state mutations
+- `update/` - Message handling split by domain (navigation, calendar, event, selection)
 - `keyboard.rs` - Centralized keyboard shortcuts (single source of truth)
+- `selection.rs` - Drag selection state for dates and time slots
 
 ### State Organization
 - `models/` - View-specific state structs (`CalendarState`, `WeekState`, `DayState`, `YearState`)
@@ -49,20 +50,14 @@ Sol is a calendar application for the COSMIC desktop built with libcosmic (iced-
 ### Calendar Backend
 - `calendars/calendar_source.rs` - `CalendarSource` trait for pluggable backends
 - `calendars/local_calendar.rs` - Local calendar implementation
-- `calendars/caldav_calendar.rs` - CalDAV calendar (uses CalDavProtocol)
+- `calendars/caldav_calendar.rs` - CalDAV calendar (WIP)
 
-### Protocol Layer (`protocols/`)
-Protocol implementations handle the actual storage/sync operations. The EventHandler middleware routes events to the appropriate protocol.
+### Dialog Management (`dialogs/`)
+- `dialogs/mod.rs` - `ActiveDialog` enum for all dialog types
+- `dialogs/manager.rs` - `DialogManager` for dialog lifecycle
 
-```
-UI → Update Handlers → EventHandler (middleware) → Protocols
-                                                      ├── LocalProtocol (SQLite)
-                                                      └── CalDavProtocol (HTTP/CalDAV)
-```
-
-- `protocols/mod.rs` - `Protocol` trait definition
-- `protocols/local.rs` - Local SQLite storage protocol
-- `protocols/caldav.rs` - CalDAV HTTP protocol
+### Database Layer (`database/`)
+- `database/schema.rs` - SQLite schema and queries for calendars and events
 
 ### Logging (`logging.rs`)
 Centralized logging configuration for the application. Use `log` macros throughout the codebase:
@@ -107,8 +102,7 @@ Service handlers centralize business logic and act as middleware between the UI/
   - Read iCalendar files (import WIP)
 
 ### Constants
-- `layout_constants.rs` - UI dimensions and spacing
-- `color_constants.rs` - Color values
+- `ui_constants.rs` - UI dimensions, spacing, and color values (consolidated)
 
 ## Internationalization
 
