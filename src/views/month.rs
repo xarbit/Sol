@@ -4,7 +4,7 @@ use chrono::{Datelike, NaiveDate};
 use cosmic::iced::widget::stack;
 use cosmic::iced::widget::text::Wrapping;
 use cosmic::iced::{alignment, Length, Size};
-use cosmic::widget::{column, container, row, responsive};
+use cosmic::widget::{column, container, mouse_area, row, responsive};
 use cosmic::{widget, Element};
 
 use crate::components::color_picker::parse_hex_color;
@@ -22,7 +22,7 @@ use crate::ui_constants::{
     FONT_SIZE_MEDIUM, FONT_SIZE_SMALL, PADDING_SMALL, PADDING_MONTH_GRID,
     SPACING_TINY, WEEK_NUMBER_WIDTH, COLOR_DEFAULT_GRAY,
     DATE_EVENT_HEIGHT, COMPACT_EVENT_HEIGHT, DATE_EVENT_SPACING,
-    DAY_CELL_HEADER_OFFSET, DAY_CELL_TOP_PADDING,
+    DAY_CELL_HEADER_OFFSET, DAY_CELL_TOP_PADDING, BORDER_WIDTH_HIGHLIGHT,
 };
 
 /// Height of the spanning quick event input overlay
@@ -40,8 +40,7 @@ const WEEKDAY_HEADER_HEIGHT: f32 = 32.0;
 /// For multi-day events, this represents one week's portion.
 #[derive(Debug, Clone)]
 struct DateEventSegment {
-    /// Event UID (reserved for future click handling)
-    #[allow(dead_code)]
+    /// Event UID for click/drag handling
     uid: String,
     /// Event summary/title
     summary: String,
@@ -58,6 +57,8 @@ struct DateEventSegment {
     /// Whether this is the first segment (shows text)
     /// For single-day events, this is always true
     is_first_segment: bool,
+    /// The event's start date (for drag operations)
+    event_start_date: NaiveDate,
 }
 
 /// Events grouped by day for display in the month view
@@ -70,6 +71,14 @@ pub struct MonthViewEvents<'a> {
     pub selection: &'a SelectionState,
     /// Active dialog state (for showing selection highlight during quick event input)
     pub active_dialog: &'a ActiveDialog,
+    /// Currently selected event UID (for visual feedback)
+    pub selected_event_uid: Option<&'a str>,
+    /// Whether an event drag operation is currently active
+    pub event_drag_active: bool,
+    /// The UID of the event currently being dragged (for dimming original)
+    pub dragging_event_uid: Option<&'a str>,
+    /// The current drop target date during drag (for highlighting target cell)
+    pub drag_target_date: Option<NaiveDate>,
 }
 
 /// Render the weekday header row with responsive names
@@ -105,15 +114,26 @@ fn render_weekday_header(show_week_numbers: bool, use_short_names: bool) -> Elem
     header_row.into()
 }
 
+/// Result of computing slot assignments for a week.
+/// Contains both the event-to-slot mapping and per-day occupancy info.
+struct WeekSlotInfo {
+    /// Map of event UID -> slot index
+    slots: HashMap<String, usize>,
+    /// Occupied slots for each day (column) in the week: [day_0, day_1, ..., day_6]
+    /// Each set contains the slot indices that are occupied by date events on that day
+    day_occupied_slots: Vec<std::collections::HashSet<usize>>,
+}
+
 /// Compute slot assignments for all date events in a week using greedy interval scheduling.
-/// Returns a map of event UID -> slot index.
+/// Returns both the event-to-slot mapping and per-day slot occupancy.
 /// Both single-day and multi-day date events get slots assigned.
 /// Events are assigned to the first available slot where they don't overlap with other events.
 fn compute_week_date_event_slots(
     week: &[CalendarDay],
     events_by_date: &HashMap<NaiveDate, Vec<DisplayEvent>>,
-) -> HashMap<String, usize> {
+) -> WeekSlotInfo {
     let mut slots: HashMap<String, usize> = HashMap::new();
+    let mut slot_occupancy: Vec<std::collections::HashSet<usize>> = vec![std::collections::HashSet::new(); 7];
 
     // Get dates for this week
     let week_dates: Vec<NaiveDate> = week
@@ -122,7 +142,7 @@ fn compute_week_date_event_slots(
         .collect();
 
     if week_dates.is_empty() {
-        return slots;
+        return WeekSlotInfo { slots, day_occupied_slots: slot_occupancy };
     }
 
     let week_start = week_dates[0];
@@ -175,8 +195,6 @@ fn compute_week_date_event_slots(
 
     // Greedy interval scheduling: assign each event to the first available slot
     // Track which slots are occupied at each column: slot_occupancy[col] = set of occupied slots
-    let mut slot_occupancy: Vec<std::collections::HashSet<usize>> = vec![std::collections::HashSet::new(); 7];
-
     for (start_col, end_col, uid) in date_events {
         // Find the first slot that is free for all columns this event spans
         let mut slot = 0;
@@ -202,16 +220,16 @@ fn compute_week_date_event_slots(
         slots.insert(uid, slot);
     }
 
-    slots
+    WeekSlotInfo { slots, day_occupied_slots: slot_occupancy }
 }
 
 /// Compute slot assignments for all date events in a week (used by day_cell for placeholders).
-/// Returns a map of event UID -> slot index.
+/// Returns the full slot info including per-day occupancy for Tetris-style rendering.
 /// Uses the same greedy interval scheduling as the overlay renderer for consistency.
 fn compute_week_event_slots(
     week: &[CalendarDay],
     events_by_date: &HashMap<NaiveDate, Vec<DisplayEvent>>,
-) -> HashMap<String, usize> {
+) -> WeekSlotInfo {
     // Use the same algorithm as the overlay to ensure consistent slot assignments
     compute_week_date_event_slots(week, events_by_date)
 }
@@ -241,7 +259,7 @@ fn collect_date_event_segments(
         let week_end = week_dates[week_dates.len() - 1];
 
         // Compute slots for this week (all date events)
-        let event_slots = compute_week_date_event_slots(week, events_by_date);
+        let week_slot_info = compute_week_date_event_slots(week, events_by_date);
 
         // Find date events in this week
         let mut week_seen: std::collections::HashSet<String> = std::collections::HashSet::new();
@@ -257,7 +275,8 @@ fn collect_date_event_segments(
                     week_seen.insert(event.uid.clone());
 
                     // Determine start/end columns for this event in this week
-                    let (start_col, end_col) = if event.is_multi_day() {
+                    // Also capture the event's start date for drag operations
+                    let (start_col, end_col, event_start_date) = if event.is_multi_day() {
                         let (Some(span_start), Some(span_end)) = (event.span_start, event.span_end) else {
                             continue;
                         };
@@ -274,10 +293,10 @@ fn collect_date_event_segments(
                         let ec = week_dates.iter()
                             .rposition(|&d| d <= span_end)
                             .unwrap_or(6);
-                        (sc, ec)
+                        (sc, ec, span_start)
                     } else {
                         // Single-day event: only spans its own column
-                        (col, col)
+                        (col, col, *date)
                     };
 
                     // Determine if this is the first segment for this event
@@ -285,7 +304,7 @@ fn collect_date_event_segments(
                     global_seen.insert(event.uid.clone(), true);
 
                     // Get slot for this event
-                    let slot = event_slots.get(&event.uid).copied().unwrap_or(0);
+                    let slot = week_slot_info.slots.get(&event.uid).copied().unwrap_or(0);
 
                     segments.push(DateEventSegment {
                         uid: event.uid.clone(),
@@ -296,6 +315,7 @@ fn collect_date_event_segments(
                         start_col,
                         end_col,
                         is_first_segment,
+                        event_start_date,
                     });
                 }
             }
@@ -315,11 +335,16 @@ fn collect_date_event_segments(
 /// * `events_by_date` - Events grouped by date
 /// * `show_week_numbers` - Whether week numbers column is visible
 /// * `compact` - If true, render thin colored lines instead of full event chips
+/// * `selected_event_uid` - Currently selected event UID for visual feedback
+/// * `event_drag_active` - Whether an event drag operation is currently active
 fn render_date_events_overlay<'a>(
     weeks: &[Vec<CalendarDay>],
     events_by_date: &HashMap<NaiveDate, Vec<DisplayEvent>>,
     show_week_numbers: bool,
     compact: bool,
+    selected_event_uid: Option<&str>,
+    event_drag_active: bool,
+    dragging_event_uid: Option<&str>,
 ) -> Option<Element<'a, Message>> {
     let segments = collect_date_event_segments(weeks, events_by_date);
 
@@ -398,6 +423,8 @@ fn render_date_events_overlay<'a>(
 
                     // Render the spanning chip (full or compact based on mode)
                     let span_cols = seg.end_col - seg.start_col + 1;
+                    let is_selected = selected_event_uid == Some(seg.uid.as_str());
+                    let is_being_dragged = dragging_event_uid == Some(seg.uid.as_str());
                     let chip = if compact {
                         render_compact_date_event_chip(
                             seg.color.clone(),
@@ -406,11 +433,16 @@ fn render_date_events_overlay<'a>(
                         )
                     } else {
                         render_date_event_chip(
+                            seg.uid.clone(),
                             seg.summary.clone(),
                             seg.color.clone(),
                             seg.is_first_segment,
                             seg.start_col == 0,
                             seg.end_col == 6,
+                            is_selected,
+                            seg.event_start_date,
+                            event_drag_active,
+                            is_being_dragged,
                         )
                     };
 
@@ -506,12 +538,18 @@ fn render_compact_date_event_chip(
 
 /// Render a single date event chip for the overlay.
 /// Works for both single-day and multi-day date events.
+/// Includes click/drag handling for event selection and movement.
 fn render_date_event_chip(
+    uid: String,
     summary: String,
     color_hex: String,
     show_text: bool,
     is_event_start: bool,
     is_event_end: bool,
+    is_selected: bool,
+    event_start_date: NaiveDate,
+    is_drag_active: bool,
+    is_being_dragged: bool,
 ) -> Element<'static, Message> {
     let color = parse_hex_color(&color_hex).unwrap_or(COLOR_DEFAULT_GRAY);
 
@@ -526,6 +564,9 @@ fn render_date_event_chip(
         (false, false) => [0.0, 0.0, 0.0, 0.0],             // Continues through
     };
 
+    // Clone summary for the drag preview message (needed because text widget moves it)
+    let drag_summary = summary.clone();
+
     let content: Element<'static, Message> = if show_text {
         widget::text(summary)
             .size(11)
@@ -537,23 +578,44 @@ fn render_date_event_chip(
             .into()
     };
 
-    container(content)
+    // Dim opacity when being dragged to show it's in motion
+    let base_opacity = if is_being_dragged { 0.15 } else if is_selected { 0.5 } else { 0.3 };
+    let text_opacity = if is_being_dragged { 0.4 } else { 1.0 };
+
+    let chip = container(content)
         .padding([2, 4, 2, 4])
         .width(Length::Fill)
         .height(Length::Fill)
         .style(move |_theme: &cosmic::Theme| {
             container::Style {
-                background: Some(cosmic::iced::Background::Color(color.scale_alpha(0.3))),
+                background: Some(cosmic::iced::Background::Color(
+                    color.scale_alpha(base_opacity)
+                )),
                 border: cosmic::iced::Border {
-                    color: cosmic::iced::Color::TRANSPARENT,
-                    width: 0.0,
+                    color: if is_selected { color } else { cosmic::iced::Color::TRANSPARENT },
+                    width: if is_selected { BORDER_WIDTH_HIGHLIGHT } else { 0.0 },
                     radius: border_radius.into(),
                 },
-                text_color: Some(color),
+                text_color: Some(color.scale_alpha(text_opacity)),
                 ..Default::default()
             }
-        })
-        .into()
+        });
+
+    // Wrap with mouse area for drag and click handling
+    // Use DragEventStart on press (like timed events) - if released without moving,
+    // handle_drag_event_end will treat it as a selection click
+    // Pass summary and color_hex for the floating drag preview
+    let mut area = mouse_area(chip)
+        .on_press(Message::DragEventStart(uid.clone(), event_start_date, drag_summary, color_hex))
+        .on_release(Message::DragEventEnd)
+        .on_double_click(Message::OpenEditEventDialog(uid));
+
+    // Track mouse movement during active drag to update target
+    if is_drag_active {
+        area = area.on_enter(Message::DragEventUpdate(event_start_date));
+    }
+
+    area.into()
 }
 
 pub fn render_month_view<'a>(
@@ -584,9 +646,13 @@ pub fn render_month_view<'a>(
     // Use pre-calculated weeks from CalendarState cache (with adjacent month days)
     for (week_index, week) in calendar_state.weeks_full.iter().enumerate() {
         // Compute slot assignments for date events in this week
-        let event_slots = events
+        let week_slot_info = events
             .as_ref()
-            .map(|e| compute_week_event_slots(week, e.events_by_date))
+            .map(|e| compute_week_event_slots(week, e.events_by_date));
+
+        // Extract the slots map for compatibility with existing code
+        let event_slots = week_slot_info.as_ref()
+            .map(|info| info.slots.clone())
             .unwrap_or_default();
 
         // Compute the max slot for this week - all day cells need this for consistent placeholders
@@ -610,7 +676,7 @@ pub fn render_month_view<'a>(
         }
 
         // Day cells
-        for calendar_day in week {
+        for (day_col, calendar_day) in week.iter().enumerate() {
             let CalendarDay { year, month, day, is_current_month } = *calendar_day;
 
             // Check if today (need to compare full date)
@@ -620,8 +686,12 @@ pub fn render_month_view<'a>(
                 && day == today.day();
 
             // Check if this day is selected (works for both current and adjacent month days)
+            // Don't show cell selection if an event is selected - event selection takes priority
             let cell_date = NaiveDate::from_ymd_opt(year, month, day);
-            let is_selected = selected_date.is_some() && cell_date == selected_date;
+            let has_event_selected = events.as_ref()
+                .and_then(|e| e.selected_event_uid)
+                .is_some();
+            let is_selected = !has_event_selected && selected_date.is_some() && cell_date == selected_date;
 
             // Get weekday for weekend detection
             let weekday = chrono::NaiveDate::from_ymd_opt(year, month, day)
@@ -659,6 +729,32 @@ pub fn render_month_view<'a>(
                 (false, false)
             };
 
+            // Get selected event UID from events if available
+            let selected_event_uid = events.as_ref()
+                .and_then(|e| e.selected_event_uid)
+                .map(|s| s.to_string());
+
+            // Check if event drag is active
+            let event_drag_active = events.as_ref()
+                .map(|e| e.event_drag_active)
+                .unwrap_or(false);
+
+            // Get the UID of the event being dragged (for dimming its original position)
+            let dragging_event_uid = events.as_ref()
+                .and_then(|e| e.dragging_event_uid)
+                .map(|s| s.to_string());
+
+            // Check if this cell is the current drop target
+            let is_drag_target = cell_date.is_some() && events.as_ref()
+                .and_then(|e| e.drag_target_date)
+                .map(|target| cell_date == Some(target))
+                .unwrap_or(false);
+
+            // Get occupied slots for this specific day (for Tetris-style rendering)
+            let day_occupied_slots = week_slot_info.as_ref()
+                .and_then(|info| info.day_occupied_slots.get(day_col).cloned())
+                .unwrap_or_default();
+
             let cell = render_day_cell_with_events(DayCellConfig {
                 year,
                 month,
@@ -670,9 +766,14 @@ pub fn render_month_view<'a>(
                 events: day_events,
                 event_slots: event_slots.clone(),
                 week_max_slot,
+                day_occupied_slots,
                 quick_event: quick_event_data,
                 is_in_selection,
                 selection_active,
+                selected_event_uid,
+                event_drag_active,
+                dragging_event_uid,
+                is_drag_target,
             });
 
             week_row = week_row.push(
@@ -706,6 +807,9 @@ pub fn render_month_view<'a>(
         let weeks = calendar_state.weeks_full.clone();
         let events_by_date = e.events_by_date.clone();
         let week_number_offset = if show_week_numbers { WEEK_NUMBER_WIDTH } else { 0.0 };
+        let selected_uid = e.selected_event_uid.map(|s| s.to_string());
+        let event_drag_active = e.event_drag_active;
+        let dragging_uid = e.dragging_event_uid.map(|s| s.to_string());
 
         let responsive_overlay = responsive(move |size: Size| {
             // Calculate approximate cell width (7 days + spacing)
@@ -725,6 +829,9 @@ pub fn render_month_view<'a>(
                 &events_by_date,
                 show_week_numbers,
                 compact,
+                selected_uid.as_deref(),
+                event_drag_active,
+                dragging_uid.as_deref(),
             ) {
                 overlay
             } else {

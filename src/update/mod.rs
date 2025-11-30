@@ -54,8 +54,10 @@ use calendar::{
 };
 use event::{
     handle_cancel_event_dialog, handle_cancel_quick_event, handle_commit_quick_event,
-    handle_confirm_event_dialog, handle_delete_event, handle_open_edit_event_dialog,
-    handle_open_new_event_dialog, handle_quick_event_text_changed, handle_start_quick_event,
+    handle_confirm_event_dialog, handle_delete_event, handle_drag_event_cancel,
+    handle_drag_event_end, handle_drag_event_start, handle_drag_event_update,
+    handle_open_edit_event_dialog, handle_open_new_event_dialog, handle_quick_event_text_changed,
+    handle_select_event, handle_start_quick_event,
 };
 use navigation::{handle_next_period, handle_previous_period};
 use selection::{
@@ -273,12 +275,36 @@ pub fn handle_message(app: &mut CosmicCalendar, message: Message) -> Task<Messag
         Message::DeleteEvent(uid) => {
             handle_delete_event(app, uid);
         }
+        Message::SelectEvent(uid) => {
+            handle_select_event(app, uid);
+        }
+
+        // === Event Drag-and-Drop ===
+        Message::DragEventStart(uid, date, summary, color) => {
+            handle_drag_event_start(app, uid, date, summary, color);
+        }
+        Message::DragEventUpdate(date) => {
+            handle_drag_event_update(app, date);
+        }
+        Message::DragEventCursorMove(x, y) => {
+            app.event_drag_state.update_cursor(x, y);
+        }
+        Message::DragEventEnd => {
+            handle_drag_event_end(app);
+        }
+        Message::DragEventCancel => {
+            handle_drag_event_cancel(app);
+        }
 
         // === Event Management - Event Dialog ===
         Message::OpenNewEventDialog => {
             handle_open_new_event_dialog(app);
         }
         Message::OpenEditEventDialog(uid) => {
+            // Cancel any drag operation that may have started from the first click of double-click
+            app.event_drag_state.cancel();
+            // Clear selection since we're opening the edit dialog
+            app.selected_event_uid = None;
             handle_open_edit_event_dialog(app, uid);
         }
         Message::EventDialogToggleEdit(field, editing) => {

@@ -40,10 +40,14 @@ pub fn today_filled_style(theme: &cosmic::Theme) -> container::Style {
     }
 }
 
-/// Style for selected day cell - border with accent color
-pub fn selected_day_style(theme: &cosmic::Theme) -> container::Style {
+/// Style for selected day cell - border with accent color, preserving weekend background
+pub fn selected_day_style(theme: &cosmic::Theme, is_weekend: bool) -> container::Style {
     container::Style {
-        background: None,
+        background: if is_weekend {
+            Some(Background::Color(COLOR_WEEKEND_BACKGROUND))
+        } else {
+            None
+        },
         border: Border {
             color: theme.cosmic().accent_color().into(),
             width: BORDER_WIDTH_HIGHLIGHT,
@@ -161,6 +165,34 @@ pub fn adjacent_month_selection_style(theme: &cosmic::Theme) -> container::Style
         },
         // Gray text for adjacent month days
         text_color: Some(Color::from_rgba(0.5, 0.5, 0.5, 0.5)),
+        ..Default::default()
+    }
+}
+
+/// Style for a day cell that is the current drop target during event drag
+/// Uses a dashed-like appearance with accent color to indicate where the event will land
+pub fn drag_target_style(theme: &cosmic::Theme, is_weekend: bool) -> container::Style {
+    let accent = theme.cosmic().accent_color();
+    // Highlight background to show this is the drop target
+    let target_bg = Color::from_rgba(accent.red, accent.green, accent.blue, 0.25);
+
+    container::Style {
+        background: Some(Background::Color(if is_weekend {
+            // Blend with weekend background
+            Color::from_rgba(
+                (COLOR_WEEKEND_BACKGROUND.r + target_bg.r) / 2.0,
+                (COLOR_WEEKEND_BACKGROUND.g + target_bg.g) / 2.0,
+                (COLOR_WEEKEND_BACKGROUND.b + target_bg.b) / 2.0,
+                0.5,
+            )
+        } else {
+            target_bg
+        })),
+        border: Border {
+            color: Color::from_rgba(accent.red, accent.green, accent.blue, 0.8),
+            width: BORDER_WIDTH_HIGHLIGHT,
+            radius: BORDER_RADIUS.into(),
+        },
         ..Default::default()
     }
 }

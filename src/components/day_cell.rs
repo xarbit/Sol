@@ -4,13 +4,14 @@ use cosmic::widget::{column, container, mouse_area, responsive};
 use cosmic::{widget, Element};
 
 use crate::components::{
-    render_compact_events, render_unified_events, render_quick_event_input, DisplayEvent,
+    render_compact_events, render_unified_events_with_selection, render_quick_event_input, DisplayEvent,
     calculate_display_mode, EventDisplayMode,
 };
 use crate::message::Message;
 use crate::styles::{
     today_circle_style, selected_day_style, day_cell_style, adjacent_month_day_style,
-    adjacent_month_selected_style, selection_highlight_style, adjacent_month_selection_style
+    adjacent_month_selected_style, selection_highlight_style, adjacent_month_selection_style,
+    drag_target_style,
 };
 use crate::ui_constants::{PADDING_DAY_CELL, SPACING_SMALL, DAY_HEADER_HEIGHT};
 
@@ -22,12 +23,14 @@ const PADDING_DAY_CELL_VERTICAL: [u16; 4] = [PADDING_DAY_CELL[0], 0, PADDING_DAY
 
 /// Apply the appropriate style to a day cell container based on state
 /// Today no longer gets special cell styling - the circle is on the day number
-/// Selected gets a border, drag selection gets highlight, regular cells get weekend background
+/// Selected gets a border, drag selection gets highlight, drop target gets accent highlight,
+/// regular cells get weekend background
 /// Uses vertical-only padding so all-day events can span edge-to-edge
 fn apply_day_cell_style<'a>(
     content: impl Into<Element<'a, Message>>,
     is_selected: bool,
     is_in_selection: bool,
+    is_drag_target: bool,
     is_weekend: bool,
 ) -> container::Container<'a, Message, cosmic::Theme> {
     let base = container(content)
@@ -35,8 +38,11 @@ fn apply_day_cell_style<'a>(
         .width(Length::Fill)
         .height(Length::Fill);
 
-    if is_selected {
-        base.style(|theme: &cosmic::Theme| selected_day_style(theme))
+    if is_drag_target {
+        // Drop target takes priority - show where the event will land
+        base.style(move |theme: &cosmic::Theme| drag_target_style(theme, is_weekend))
+    } else if is_selected {
+        base.style(move |theme: &cosmic::Theme| selected_day_style(theme, is_weekend))
     } else if is_in_selection {
         base.style(move |theme: &cosmic::Theme| selection_highlight_style(theme, is_weekend))
     } else {
@@ -60,12 +66,23 @@ pub struct DayCellConfig {
     /// Maximum slot index used in this week (for consistent vertical offset)
     /// All day cells in the same week should have the same max_slot value
     pub week_max_slot: Option<usize>,
+    /// Slots occupied by date events on THIS specific day (for Tetris-style rendering)
+    /// Timed events will fill empty slots instead of being pushed below
+    pub day_occupied_slots: std::collections::HashSet<usize>,
     /// If Some, show quick event input with (editing_text, calendar_color)
     pub quick_event: Option<(String, String)>,
     /// Whether this day is part of the current drag selection range
     pub is_in_selection: bool,
     /// Whether a drag selection is currently active
     pub selection_active: bool,
+    /// Currently selected event UID (for visual feedback)
+    pub selected_event_uid: Option<String>,
+    /// Whether an event drag operation is currently active
+    pub event_drag_active: bool,
+    /// The UID of the event currently being dragged (for dimming its original position)
+    pub dragging_event_uid: Option<String>,
+    /// Whether this cell is the current drop target
+    pub is_drag_target: bool,
 }
 
 /// Render a day cell with events and optional quick event input
@@ -129,12 +146,12 @@ pub fn render_day_cell_with_events(config: DayCellConfig) -> Element<'static, Me
                 let show_overflow = display_mode.show_overflow();
 
                 if display_mode.is_compact() {
-                    // Compact mode: thin color lines without text
+                    // Compact mode: Tetris-style thin color indicators without text
                     let compact_events = render_compact_events(
                         config.events.clone(),
                         max_visible,
                         current_date,
-                        &config.event_slots,
+                        &config.day_occupied_slots,
                         config.week_max_slot,
                     );
 
@@ -154,12 +171,16 @@ pub fn render_day_cell_with_events(config: DayCellConfig) -> Element<'static, Me
                         );
                     }
                 } else {
-                    // Full mode: unified column with placeholders followed by timed events
-                    let unified = render_unified_events(
+                    // Full mode: Tetris-style rendering with timed events filling empty slots
+                    let unified = render_unified_events_with_selection(
                         config.events.clone(),
                         max_visible,
                         current_date,
                         config.week_max_slot,
+                        &config.day_occupied_slots,
+                        config.selected_event_uid.as_deref(),
+                        config.event_drag_active,
+                        config.dragging_event_uid.as_deref(),
                     );
 
                     // Single container for all events (placeholders + timed)
@@ -211,11 +232,12 @@ pub fn render_day_cell_with_events(config: DayCellConfig) -> Element<'static, Me
                     .into()
             }
         } else {
-            // Current month: normal styling (selected gets border, selection gets highlight)
+            // Current month: normal styling (selected gets border, selection gets highlight, drop target gets accent)
             apply_day_cell_style(
                 content,
                 config.is_selected,
                 config.is_in_selection,
+                config.is_drag_target,
                 config.is_weekend,
             ).into()
         };
@@ -225,18 +247,25 @@ pub fn render_day_cell_with_events(config: DayCellConfig) -> Element<'static, Me
 
     // Handle mouse interactions
     if let Some(date) = date {
-        // Build mouse area with drag selection support
+        // Build mouse area with drag selection and event drag support
         let mut area = mouse_area(cell_content)
-            // Start drag selection on mouse press
+            // Start drag selection on mouse press (only if not dragging an event)
             .on_press(Message::SelectionStart(date))
-            // End drag selection on mouse release
-            .on_release(Message::SelectionEnd)
             // Double-click opens quick event for single-day creation
             .on_double_click(Message::StartQuickEvent(date));
 
-        // Only track mouse movement during active selection for performance
+        // Handle release: either end selection or end event drag
+        if config.event_drag_active {
+            area = area.on_release(Message::DragEventEnd);
+        } else {
+            area = area.on_release(Message::SelectionEnd);
+        }
+
+        // Track mouse movement during active selection or event drag
         if config.selection_active {
             area = area.on_enter(Message::SelectionUpdate(date));
+        } else if config.event_drag_active {
+            area = area.on_enter(Message::DragEventUpdate(date));
         }
 
         area.into()

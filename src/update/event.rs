@@ -104,6 +104,109 @@ pub fn handle_delete_event(app: &mut CosmicCalendar, uid: String) {
     app.refresh_cached_events();
 }
 
+/// Select an event for viewing/editing
+/// Toggles selection - clicking the same event again deselects it
+pub fn handle_select_event(app: &mut CosmicCalendar, uid: String) {
+    debug!("handle_select_event: uid={}", uid);
+
+    // Toggle selection: if already selected, deselect
+    if app.selected_event_uid.as_ref() == Some(&uid) {
+        app.selected_event_uid = None;
+        debug!("handle_select_event: Deselected event");
+    } else {
+        app.selected_event_uid = Some(uid);
+        debug!("handle_select_event: Selected event");
+    }
+}
+
+// === Event Drag Handlers ===
+
+/// Start dragging an event to move it to a new date
+/// Takes the event UID, original date, summary (for preview), and color (for preview)
+pub fn handle_drag_event_start(
+    app: &mut CosmicCalendar,
+    uid: String,
+    original_date: NaiveDate,
+    summary: String,
+    color: String,
+) {
+    debug!("handle_drag_event_start: uid={}, date={}, summary={}", uid, original_date, summary);
+
+    // Cancel any day selection in progress
+    app.selection_state.cancel();
+
+    // Start the drag operation with display info for the preview
+    app.event_drag_state.start(uid, original_date, summary, color);
+}
+
+/// Update the drag target date as user drags over cells
+pub fn handle_drag_event_update(app: &mut CosmicCalendar, target_date: NaiveDate) {
+    app.event_drag_state.update(target_date);
+}
+
+/// End the drag operation - move the event if target differs from original
+/// If the event wasn't moved (same date), treat it as a selection click
+pub fn handle_drag_event_end(app: &mut CosmicCalendar) {
+    // Get the event UID before ending the drag (for selection fallback)
+    let event_uid = app.event_drag_state.event_uid.clone();
+
+    // Try to end the drag and get move info
+    let move_result = app.event_drag_state.end();
+
+    match move_result {
+        Some((uid, original_date, new_date)) => {
+            // Event was dragged to a different date - move it
+            info!("handle_drag_event_end: Moving event {} from {} to {}", uid, original_date, new_date);
+
+            // Calculate the offset in days
+            let offset = (new_date - original_date).num_days();
+
+            // Find the event and move it
+            if let Ok((event, calendar_id)) = EventHandler::find_event(&app.calendar_manager, &uid) {
+                // Calculate new start and end times by adding the offset
+                let new_start = event.start + chrono::Duration::days(offset);
+                let new_end = event.end + chrono::Duration::days(offset);
+
+                // Create updated event with new dates
+                let updated_event = crate::caldav::CalendarEvent {
+                    start: new_start,
+                    end: new_end,
+                    ..event
+                };
+
+                // Update the event
+                if let Err(e) = EventHandler::update_event(&mut app.calendar_manager, &calendar_id, updated_event) {
+                    error!("handle_drag_event_end: Failed to move event: {}", e);
+                    return;
+                }
+
+                info!("handle_drag_event_end: Event moved successfully");
+                app.refresh_cached_events();
+            } else {
+                warn!("handle_drag_event_end: Event not found: {}", uid);
+            }
+        }
+        None => {
+            // Event wasn't moved (clicked and released on same date) - treat as selection
+            if let Some(uid) = event_uid {
+                debug!("handle_drag_event_end: No move, selecting event {}", uid);
+                // Toggle selection like regular click
+                if app.selected_event_uid.as_ref() == Some(&uid) {
+                    app.selected_event_uid = None;
+                } else {
+                    app.selected_event_uid = Some(uid);
+                }
+            }
+        }
+    }
+}
+
+/// Cancel the drag operation
+pub fn handle_drag_event_cancel(app: &mut CosmicCalendar) {
+    debug!("handle_drag_event_cancel: Cancelling drag");
+    app.event_drag_state.cancel();
+}
+
 /// Start editing a quick event on a specific date
 /// Uses DialogManager to open ActiveDialog::QuickEvent
 pub fn handle_start_quick_event(app: &mut CosmicCalendar, date: NaiveDate) {

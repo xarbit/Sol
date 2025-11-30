@@ -87,6 +87,20 @@ pub enum Message {
     CancelQuickEvent,
     /// Delete an event by its UID
     DeleteEvent(String),
+    /// Select an event (single click) for viewing/editing
+    SelectEvent(String),
+
+    // Event drag-and-drop
+    /// Start dragging an event to move it (uid, original_date, summary, color)
+    DragEventStart(String, NaiveDate, String, String),
+    /// Update the drag target date as user drags over cells
+    DragEventUpdate(NaiveDate),
+    /// Update cursor position during drag (x, y)
+    DragEventCursorMove(f32, f32),
+    /// End the drag operation (drop the event)
+    DragEventEnd,
+    /// Cancel the drag operation
+    DragEventCancel,
 
     // Event management - Event dialog
     /// Open the event dialog for creating a new event

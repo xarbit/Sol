@@ -46,17 +46,17 @@ pub fn handle_selection_end(app: &mut CosmicCalendar) {
 
     match app.current_view {
         CalendarView::Month => {
-            month::handle_selection_end(app, range.start, range.end);
+            month::handle_selection_end(app, range.start.date, range.end.date);
         }
         CalendarView::Week => {
-            week::handle_selection_end(app, range.start, range.end);
+            week::handle_selection_end(app, range.start.date, range.end.date);
         }
         CalendarView::Day => {
-            day::handle_selection_end(app, range.start, range.end);
+            day::handle_selection_end(app, range.start.date, range.end.date);
         }
         CalendarView::Year => {
             // Year view: just select the day (no special selection behavior)
-            app.set_selected_date(range.start);
+            app.set_selected_date(range.start.date);
         }
     }
 }
