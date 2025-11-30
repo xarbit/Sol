@@ -15,6 +15,7 @@ use crate::services::EventHandler;
 
 /// Commit the quick event being edited - create a new event in the selected calendar
 /// Uses DialogManager to get the event data from ActiveDialog::QuickEvent
+/// Supports both single-day and multi-day events (from drag selection)
 pub fn handle_commit_quick_event(app: &mut CosmicCalendar) {
     debug!("handle_commit_quick_event: Starting");
 
@@ -24,7 +25,7 @@ pub fn handle_commit_quick_event(app: &mut CosmicCalendar) {
         DialogAction::CommitQuickEvent,
     );
 
-    let Some(QuickEventResult { date, text }) = result else {
+    let Some(QuickEventResult { start_date, end_date, text }) = result else {
         debug!("handle_commit_quick_event: No quick event editing state");
         return;
     };
@@ -42,15 +43,26 @@ pub fn handle_commit_quick_event(app: &mut CosmicCalendar) {
         return;
     };
 
-    info!("handle_commit_quick_event: Creating event '{}' on {} in calendar '{}'", text, date, calendar_id);
+    let is_multi_day = start_date != end_date;
+    if is_multi_day {
+        info!(
+            "handle_commit_quick_event: Creating multi-day event '{}' from {} to {} in calendar '{}'",
+            text, start_date, end_date, calendar_id
+        );
+    } else {
+        info!(
+            "handle_commit_quick_event: Creating event '{}' on {} in calendar '{}'",
+            text, start_date, calendar_id
+        );
+    }
 
-    // Create an all-day event for the selected date
+    // Create an all-day event
     // Use midnight UTC for start, end of day for end
     let start_time = NaiveTime::from_hms_opt(0, 0, 0).unwrap();
     let end_time = NaiveTime::from_hms_opt(23, 59, 59).unwrap();
 
-    let start = Utc.from_utc_datetime(&date.and_time(start_time));
-    let end = Utc.from_utc_datetime(&date.and_time(end_time));
+    let start = Utc.from_utc_datetime(&start_date.and_time(start_time));
+    let end = Utc.from_utc_datetime(&end_date.and_time(end_time));
 
     let event = CalendarEvent {
         uid: Uuid::new_v4().to_string(),

@@ -45,10 +45,16 @@ use log::{debug, info};
 pub enum ActiveDialog {
     /// No dialog is open
     None,
-    /// Quick event input on a specific date
-    /// This is the inline text input that appears when double-clicking a day
+    /// Quick event input for single or multi-day events
+    /// - Single day (start == end): double-click on a day
+    /// - Multi-day (start != end): drag selection across days
+    /// The input appears on the start date
     QuickEvent {
-        date: NaiveDate,
+        /// Start date of the event
+        start_date: NaiveDate,
+        /// End date of the event (same as start for single-day)
+        end_date: NaiveDate,
+        /// Event title being typed
         text: String,
     },
     /// Color picker for a specific calendar
@@ -120,11 +126,30 @@ impl ActiveDialog {
         }
     }
 
-    /// Get quick event data if editing (date, text)
+    /// Get quick event data if editing (start_date, text)
+    /// Returns the start date for display purposes (input appears on start date)
     pub fn quick_event_data(&self) -> Option<(NaiveDate, &str)> {
         match self {
-            ActiveDialog::QuickEvent { date, text } => Some((*date, text)),
+            ActiveDialog::QuickEvent { start_date, text, .. } => Some((*start_date, text)),
             _ => None,
+        }
+    }
+
+    /// Get full quick event range if editing (start_date, end_date, text)
+    pub fn quick_event_range(&self) -> Option<(NaiveDate, NaiveDate, &str)> {
+        match self {
+            ActiveDialog::QuickEvent { start_date, end_date, text } => {
+                Some((*start_date, *end_date, text))
+            }
+            _ => None,
+        }
+    }
+
+    /// Check if the quick event spans multiple days
+    pub fn is_multi_day_quick_event(&self) -> bool {
+        match self {
+            ActiveDialog::QuickEvent { start_date, end_date, .. } => start_date != end_date,
+            _ => false,
         }
     }
 
@@ -144,8 +169,10 @@ pub enum DialogAction {
     Close,
     /// Close dialog and perform cleanup/confirm action
     CloseAndConfirm,
-    /// Start a quick event on the given date
+    /// Start a quick event on a single date (double-click)
     StartQuickEvent(NaiveDate),
+    /// Start a quick event spanning a date range (drag selection)
+    StartQuickEventRange { start: NaiveDate, end: NaiveDate },
     /// Update quick event text while typing
     QuickEventTextChanged(String),
     /// Commit the quick event (create the event)
@@ -237,7 +264,19 @@ impl DialogManager {
                 Self::open(
                     current,
                     ActiveDialog::QuickEvent {
-                        date,
+                        start_date: date,
+                        end_date: date,
+                        text: String::new(),
+                    },
+                );
+                None
+            }
+            DialogAction::StartQuickEventRange { start, end } => {
+                Self::open(
+                    current,
+                    ActiveDialog::QuickEvent {
+                        start_date: start,
+                        end_date: end,
                         text: String::new(),
                     },
                 );
@@ -251,9 +290,10 @@ impl DialogManager {
             }
             DialogAction::CommitQuickEvent => {
                 // Extract the data before closing, return it for the caller to process
-                if let ActiveDialog::QuickEvent { date, text } = current {
+                if let ActiveDialog::QuickEvent { start_date, end_date, text } = current {
                     let result = QuickEventResult {
-                        date: *date,
+                        start_date: *start_date,
+                        end_date: *end_date,
                         text: text.clone(),
                     };
                     *current = ActiveDialog::None;
@@ -336,8 +376,19 @@ impl DialogManager {
 /// Contains the data needed to create the actual event
 #[derive(Debug, Clone)]
 pub struct QuickEventResult {
-    pub date: NaiveDate,
+    /// Start date of the event
+    pub start_date: NaiveDate,
+    /// End date of the event (same as start for single-day)
+    pub end_date: NaiveDate,
+    /// Event title
     pub text: String,
+}
+
+impl QuickEventResult {
+    /// Check if this is a multi-day event
+    pub fn is_multi_day(&self) -> bool {
+        self.start_date != self.end_date
+    }
 }
 
 #[cfg(test)]
@@ -427,8 +478,32 @@ mod tests {
         assert!(!dialog.is_open());
         assert!(result.is_some());
         let result = result.unwrap();
-        assert_eq!(result.date, date);
+        assert_eq!(result.start_date, date);
+        assert_eq!(result.end_date, date);
+        assert!(!result.is_multi_day());
         assert_eq!(result.text, "Meeting");
+    }
+
+    #[test]
+    fn test_multi_day_quick_event() {
+        let mut dialog = ActiveDialog::None;
+        let start = NaiveDate::from_ymd_opt(2024, 1, 15).unwrap();
+        let end = NaiveDate::from_ymd_opt(2024, 1, 18).unwrap();
+
+        DialogManager::handle_action(&mut dialog, DialogAction::StartQuickEventRange { start, end });
+        DialogManager::handle_action(&mut dialog, DialogAction::QuickEventTextChanged("Vacation".to_string()));
+
+        assert!(dialog.is_quick_event());
+        assert!(dialog.is_multi_day_quick_event());
+        assert_eq!(dialog.quick_event_range(), Some((start, end, "Vacation")));
+
+        let result = DialogManager::handle_action(&mut dialog, DialogAction::CommitQuickEvent);
+        assert!(result.is_some());
+        let result = result.unwrap();
+        assert_eq!(result.start_date, start);
+        assert_eq!(result.end_date, end);
+        assert!(result.is_multi_day());
+        assert_eq!(result.text, "Vacation");
     }
 
     #[test]
