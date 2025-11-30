@@ -1,3 +1,9 @@
+//! CalDAV calendar implementation for remote calendar synchronization.
+//!
+//! NOTE: Prepared for future CalDAV integration - not yet connected to UI.
+
+#![allow(dead_code)] // Prepared for future CalDAV sync feature
+
 use super::calendar_source::{CalendarInfo, CalendarSource, CalendarType};
 use crate::caldav::{CalDavClient, CalendarEvent};
 use std::error::Error;

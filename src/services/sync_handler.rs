@@ -2,6 +2,12 @@
 //!
 //! This handler manages synchronization of calendars with their backends,
 //! including local database refreshes and remote CalDAV syncs.
+//!
+//! NOTE: This module is prepared for future CalDAV integration.
+//! Currently unused but provides the sync infrastructure needed when
+//! remote calendar support is implemented.
+
+#![allow(dead_code)] // Prepared for future CalDAV sync feature
 
 use crate::calendars::CalendarManager;
 use log::{debug, error, info, warn};

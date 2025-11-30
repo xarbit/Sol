@@ -1,6 +1,11 @@
 //! Calendar dialog state structures
 //!
 //! Separates business data from UI concerns.
+//!
+//! NOTE: These structures are prepared for migrating CalendarDialogState
+//! to the centralized ActiveDialog pattern.
+
+#![allow(dead_code)] // Prepared for dialog architecture migration
 
 /// Mode for the calendar dialog (Create or Edit)
 #[derive(Debug, Clone, PartialEq)]

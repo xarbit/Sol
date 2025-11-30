@@ -1,6 +1,12 @@
 //! Event dialog state structures
 //!
 //! Separates business data from UI state for cleaner architecture.
+//!
+//! NOTE: These new structures are prepared for migrating EventDialogState
+//! from app.rs to the centralized ActiveDialog pattern. The migration is
+//! blocked by text_editor::Content not implementing Clone.
+
+#![allow(dead_code)] // Prepared for dialog architecture migration
 
 use chrono::{NaiveDate, NaiveTime};
 use cosmic::widget::{calendar::CalendarModel, text_editor};
