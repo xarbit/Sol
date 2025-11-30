@@ -9,11 +9,9 @@ pub const COLOR_DAY_CELL_BORDER: Color = Color::from_rgba(0.5, 0.5, 0.5, 0.2);
 pub const COLOR_WEEKEND_BACKGROUND: Color = Color::from_rgba(0.5, 0.5, 0.5, 0.05); // Subtle gray tint
 
 /// Blue color for "today" indicator circle - consistent across all themes
-/// Similar to Apple Calendar / Google Calendar blue
 pub const COLOR_TODAY_BLUE: Color = Color::from_rgb(0.0, 122.0/255.0, 255.0/255.0); // #007AFF
 
 /// Red color for the current time indicator line in week/day views
-/// Similar to Apple Calendar / Google Calendar red line
 pub const COLOR_CURRENT_TIME: Color = Color::from_rgb(1.0, 59.0/255.0, 48.0/255.0); // #FF3B30
 
 /// Light blue background for time slot selection in week/day views

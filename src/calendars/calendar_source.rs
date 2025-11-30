@@ -62,7 +62,7 @@ impl CalendarInfo {
             CalendarType::CalDav => "#8B5CF6".to_string(),     // purple
             CalendarType::Google => "#EA4335".to_string(),     // google red
             CalendarType::Outlook => "#0078D4".to_string(),    // outlook blue
-            CalendarType::ICloud => "#007AFF".to_string(),     // apple blue
+            CalendarType::ICloud => "#007AFF".to_string(),     //
             CalendarType::Other => "#6B7280".to_string(),      // gray
         }
     }

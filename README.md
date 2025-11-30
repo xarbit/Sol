@@ -18,7 +18,7 @@ A modern calendar application built with [libcosmic](https://github.com/pop-os/l
 
 ## About
 
-Sol is a native calendar application designed for the COSMIC desktop environment. Built using libcosmic's widget system, it provides a clean, intuitive interface inspired by Apple Calendar's design while following COSMIC's design language and responsive layout patterns.
+Sol is a native calendar application designed for the COSMIC desktop environment. Built using libcosmic's widget system, it provides a clean, intuitive interface inspired by other popular Calendar's design while following COSMIC's design language and responsive layout patterns.
 
 The application will support CalDAV protocol for synchronizing events with calendar servers like Nextcloud, Radicale, and other standard CalDAV-compatible services.
 
@@ -29,7 +29,6 @@ This project is in **active development**. The UI foundation is in place, but co
 ### ✅ Implemented Features
 
 #### Core UI
-- Apple Calendar-inspired layout with responsive left sidebar
 - Mini calendar in sidebar for quick date navigation
 - Day selection with visual feedback (outlined today, filled selection)
 - Square day cells with 4px rounded corners (theme-independent)
