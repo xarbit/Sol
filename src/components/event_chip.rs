@@ -523,3 +523,180 @@ pub fn render_spanning_event_chip(
         })
         .into()
 }
+
+/// Height of compact event indicators (thin lines)
+const COMPACT_EVENT_HEIGHT: f32 = 6.0;
+
+/// Result of rendering compact events
+pub struct CompactEventsResult {
+    /// The rendered element containing all compact event indicators
+    pub element: Option<Element<'static, Message>>,
+    /// Number of events not shown
+    pub overflow_count: usize,
+}
+
+/// Render a compact event indicator (thin colored line without text)
+/// Used when cell size is too small for full event chips
+fn render_compact_event_indicator(
+    color: cosmic::iced::Color,
+    span_position: SpanPosition,
+) -> Element<'static, Message> {
+    let radius = 2.0;
+    let border_radius: [f32; 4] = match span_position {
+        SpanPosition::Single => [radius, radius, radius, radius],
+        SpanPosition::First => [radius, 0.0, 0.0, radius],
+        SpanPosition::Middle => [0.0, 0.0, 0.0, 0.0],
+        SpanPosition::Last => [0.0, radius, radius, 0.0],
+    };
+
+    container(widget::text(""))
+        .width(Length::Fill)
+        .height(Length::Fixed(COMPACT_EVENT_HEIGHT))
+        .style(move |_theme: &cosmic::Theme| {
+            container::Style {
+                background: Some(cosmic::iced::Background::Color(color.scale_alpha(0.6))),
+                border: cosmic::iced::Border {
+                    color: cosmic::iced::Color::TRANSPARENT,
+                    width: 0.0,
+                    radius: border_radius.into(),
+                },
+                ..Default::default()
+            }
+        })
+        .into()
+}
+
+/// Render a compact timed event indicator (small colored dot)
+fn render_compact_timed_indicator(color: cosmic::iced::Color) -> Element<'static, Message> {
+    container(widget::text(""))
+        .width(Length::Fixed(COMPACT_EVENT_HEIGHT))
+        .height(Length::Fixed(COMPACT_EVENT_HEIGHT))
+        .style(move |_theme: &cosmic::Theme| {
+            container::Style {
+                background: Some(cosmic::iced::Background::Color(color)),
+                border: cosmic::iced::Border {
+                    color: cosmic::iced::Color::TRANSPARENT,
+                    width: 0.0,
+                    radius: (COMPACT_EVENT_HEIGHT / 2.0).into(),
+                },
+                ..Default::default()
+            }
+        })
+        .into()
+}
+
+/// Empty compact placeholder to maintain slot alignment
+fn render_compact_empty_placeholder() -> Element<'static, Message> {
+    container(widget::text(""))
+        .width(Length::Fill)
+        .height(Length::Fixed(COMPACT_EVENT_HEIGHT))
+        .into()
+}
+
+/// Render events in compact mode (thin colored lines/dots without text)
+/// Used when cell size is too small for full event chips
+///
+/// # Arguments
+/// * `events` - Events to render
+/// * `max_visible` - Maximum number of compact indicators to show
+/// * `current_date` - The date of the cell (for calculating span position)
+/// * `event_slots` - Slot assignments for multi-day events
+pub fn render_compact_events(
+    events: Vec<DisplayEvent>,
+    max_visible: usize,
+    current_date: NaiveDate,
+    event_slots: &std::collections::HashMap<String, usize>,
+) -> CompactEventsResult {
+    // Separate all-day and timed events
+    let (all_day_events, mut timed_events): (Vec<_>, Vec<_>) =
+        events.into_iter().partition(|e| e.all_day);
+
+    // Sort timed events by start time
+    timed_events.sort_by(|a, b| a.start_time.cmp(&b.start_time));
+
+    // Find the maximum slot number for all-day events
+    let max_slot = event_slots.values().copied().max();
+
+    // Build slot-ordered list of all-day events
+    let mut ordered_all_day: Vec<Option<DisplayEvent>> = Vec::new();
+
+    if let Some(max_s) = max_slot {
+        ordered_all_day.resize(max_s + 1, None);
+
+        for event in all_day_events.iter() {
+            if let Some(&slot) = event_slots.get(&event.uid) {
+                if slot < ordered_all_day.len() {
+                    ordered_all_day[slot] = Some(event.clone());
+                }
+            }
+        }
+
+        // Add unslotted all-day events
+        let unslotted: Vec<DisplayEvent> = all_day_events
+            .into_iter()
+            .filter(|e| !event_slots.contains_key(&e.uid))
+            .collect();
+
+        for event in unslotted {
+            ordered_all_day.push(Some(event));
+        }
+    } else {
+        for event in all_day_events {
+            ordered_all_day.push(Some(event));
+        }
+    }
+
+    let total_events = ordered_all_day.iter().filter(|e| e.is_some()).count() + timed_events.len();
+    let mut shown = 0;
+
+    let mut col = column().spacing(SPACING_TINY);
+    let mut has_content = false;
+
+    // Render all-day events as thin colored lines
+    for slot_event in ordered_all_day {
+        if shown >= max_visible {
+            break;
+        }
+        match slot_event {
+            Some(event) => {
+                let color = parse_hex_color(&event.color).unwrap_or(COLOR_DEFAULT_GRAY);
+                let span_position = event.span_position_for_date(current_date);
+                col = col.push(render_compact_event_indicator(color, span_position));
+                has_content = true;
+            }
+            None => {
+                col = col.push(render_compact_empty_placeholder());
+            }
+        }
+        shown += 1;
+    }
+
+    // Render timed events as small dots in a row
+    if !timed_events.is_empty() && shown < max_visible {
+        let mut dots_row = row().spacing(SPACING_TINY);
+        let remaining_slots = max_visible - shown;
+
+        for (i, event) in timed_events.iter().enumerate() {
+            if i >= remaining_slots {
+                break;
+            }
+            let color = parse_hex_color(&event.color).unwrap_or(COLOR_DEFAULT_GRAY);
+            dots_row = dots_row.push(render_compact_timed_indicator(color));
+            shown += 1;
+        }
+
+        col = col.push(dots_row);
+        has_content = true;
+    }
+
+    let overflow_count = if total_events > shown {
+        total_events - shown
+    } else {
+        0
+    };
+
+    CompactEventsResult {
+        element: if has_content { Some(col.into()) } else { None },
+        overflow_count,
+    }
+}
