@@ -73,3 +73,31 @@ pub const FONT_SIZE_MEDIUM: u16 = 12;
 #[allow(dead_code)] // For future use
 pub const FONT_SIZE_BODY: u16 = 14;
 pub const FONT_SIZE_LARGE: u16 = 24;
+
+// Event display dimensions
+/// Height of a date event chip in full mode (overlay and day cells must match)
+pub const DATE_EVENT_HEIGHT: f32 = 19.0;
+/// Height of a compact date event indicator (thin colored line)
+pub const COMPACT_EVENT_HEIGHT: f32 = 6.0;
+/// Spacing between date event rows
+pub const DATE_EVENT_SPACING: f32 = 2.0;
+/// Height of the "+N more" overflow indicator (full mode)
+pub const OVERFLOW_INDICATOR_HEIGHT: f32 = 14.0;
+/// Height of the "+N" overflow indicator (compact mode)
+pub const COMPACT_OVERFLOW_HEIGHT: f32 = 10.0;
+
+// Event display mode thresholds
+/// Minimum cell height to show full event chips (below this, use compact mode)
+pub const MIN_CELL_HEIGHT_FOR_FULL_EVENTS: f32 = 80.0;
+/// Minimum cell width to show full event chips (below this, use compact mode)
+pub const MIN_CELL_WIDTH_FOR_FULL_EVENTS: f32 = 80.0;
+/// Minimum cell height to show overflow indicator (below this, hide it)
+pub const MIN_CELL_HEIGHT_FOR_OVERFLOW: f32 = 50.0;
+
+// Day cell layout
+/// Height reserved for day number header in day cells
+pub const DAY_HEADER_HEIGHT: f32 = 28.0;
+/// Offset from top of cell to where events start (header + spacing)
+pub const DAY_CELL_HEADER_OFFSET: f32 = 32.0;
+/// Top padding of day cells
+pub const DAY_CELL_TOP_PADDING: f32 = 4.0;

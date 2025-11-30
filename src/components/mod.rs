@@ -4,6 +4,7 @@ mod calendar_list;
 pub mod color_picker;
 mod day_cell;
 mod day_header;
+mod display_mode;
 mod event_chip;
 mod event_dialog;
 mod event_dialog_callbacks;
@@ -27,6 +28,7 @@ pub use time_grid::{render_time_grid, render_time_column_placeholder, grid_cell_
 #[allow(unused_imports)]
 pub use time_picker::render_time_picker;
 pub use toolbar::render_toolbar;
+pub use display_mode::{EventDisplayMode, calculate_display_mode, should_use_compact};
 
 // These callback structs are available for future use when we complete the refactoring
 // to make dialogs generic over message type (like time_picker.rs)

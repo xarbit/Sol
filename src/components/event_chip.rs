@@ -7,10 +7,10 @@ use cosmic::{widget, Element};
 
 use crate::components::color_picker::parse_hex_color;
 use crate::message::Message;
-use crate::ui_constants::{SPACING_TINY, SPACING_XXS, BORDER_RADIUS, COLOR_DEFAULT_GRAY};
-
-/// Spacing between date event placeholders (must match DATE_EVENT_SPACING in month.rs)
-const DATE_EVENT_PLACEHOLDER_SPACING: u16 = 2;
+use crate::ui_constants::{
+    SPACING_TINY, SPACING_XXS, BORDER_RADIUS, COLOR_DEFAULT_GRAY,
+    DATE_EVENT_HEIGHT, DATE_EVENT_SPACING, COMPACT_EVENT_HEIGHT,
+};
 
 /// ID for the quick event text input - used for auto-focus
 pub fn quick_event_input_id() -> text_input::Id {
@@ -281,11 +281,10 @@ pub struct UnifiedEventsResult {
 
 /// Render an empty placeholder to maintain slot alignment
 /// This creates an invisible spacer with the same height as an overlay event row
-/// Must match DATE_EVENT_HEIGHT (19.0) in month.rs exactly
 fn render_empty_slot_placeholder() -> Element<'static, Message> {
     container(widget::text(""))
         .width(Length::Fill)
-        .height(Length::Fixed(19.0)) // Must match DATE_EVENT_HEIGHT in overlay
+        .height(Length::Fixed(DATE_EVENT_HEIGHT))
         .into()
 }
 
@@ -321,8 +320,8 @@ pub fn render_unified_events(
     let actual_date_events = all_day_events.len();
     let total_events = actual_date_events + timed_events.len();
 
-    // Build a single column with consistent DATE_EVENT_SPACING (2px) to match overlay
-    let mut col = column().spacing(DATE_EVENT_PLACEHOLDER_SPACING);
+    // Build a single column with consistent DATE_EVENT_SPACING to match overlay
+    let mut col = column().spacing(DATE_EVENT_SPACING as u16);
     let mut shown = 0;
 
     // First: render placeholders for date event slots (these align with overlay)
@@ -360,9 +359,6 @@ pub fn render_unified_events(
         overflow_count,
     }
 }
-
-/// Height of compact event indicators (thin lines)
-const COMPACT_EVENT_HEIGHT: f32 = 6.0;
 
 /// Result of rendering compact events
 pub struct CompactEventsResult {
@@ -428,7 +424,7 @@ pub fn render_compact_events(
     let mut shown = 0;
 
     // Use same spacing as overlay for proper alignment
-    let mut col = column().spacing(DATE_EVENT_PLACEHOLDER_SPACING);
+    let mut col = column().spacing(DATE_EVENT_SPACING as u16);
     let mut has_content = false;
 
     // Render placeholders for date events (actual events are in overlay)

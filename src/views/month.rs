@@ -17,9 +17,12 @@ use crate::localized_names;
 use crate::message::Message;
 use crate::models::CalendarState;
 use crate::selection::SelectionState;
+use crate::components::should_use_compact;
 use crate::ui_constants::{
     FONT_SIZE_MEDIUM, FONT_SIZE_SMALL, PADDING_SMALL, PADDING_MONTH_GRID,
     SPACING_TINY, WEEK_NUMBER_WIDTH, COLOR_DEFAULT_GRAY,
+    DATE_EVENT_HEIGHT, COMPACT_EVENT_HEIGHT, DATE_EVENT_SPACING,
+    DAY_CELL_HEADER_OFFSET, DAY_CELL_TOP_PADDING,
 };
 
 /// Height of the spanning quick event input overlay
@@ -31,28 +34,6 @@ const MIN_CELL_WIDTH_FOR_FULL_NAMES: f32 = 100.0;
 
 /// Fixed height for the weekday header row
 const WEEKDAY_HEADER_HEIGHT: f32 = 32.0;
-
-/// Height of a date event chip in the overlay (full mode)
-const DATE_EVENT_HEIGHT: f32 = 19.0;
-
-/// Height of a compact date event indicator (thin line)
-const COMPACT_DATE_EVENT_HEIGHT: f32 = 6.0;
-
-/// Spacing between date event chips
-const DATE_EVENT_SPACING: f32 = 2.0;
-
-/// Minimum cell height to show full event chips (below this, use compact mode)
-const MIN_CELL_HEIGHT_FOR_FULL_EVENTS: f32 = 80.0;
-
-/// Minimum cell width to show full event chips (below this, use compact mode)
-const MIN_CELL_WIDTH_FOR_FULL_EVENTS: f32 = 80.0;
-
-/// Offset from top of cell to where events start (day number area)
-/// This is derived from day_cell: DAY_HEADER_HEIGHT (28) + SPACING_SMALL (4)
-const DAY_CELL_HEADER_OFFSET: f32 = 32.0;
-
-/// Top padding of day cells
-const DAY_CELL_TOP_PADDING: f32 = 4.0;
 
 /// A segment of a date event (no specific time) to render in the overlay.
 /// For single-day events, this represents the entire event.
@@ -358,7 +339,7 @@ fn render_date_events_overlay<'a>(
     }
 
     // Use appropriate height based on compact mode
-    let event_height = if compact { COMPACT_DATE_EVENT_HEIGHT } else { DATE_EVENT_HEIGHT };
+    let event_height = if compact { COMPACT_EVENT_HEIGHT } else { DATE_EVENT_HEIGHT };
 
     // Build overlay with same structure as main grid
     let mut overlay_column = column()
@@ -737,8 +718,7 @@ pub fn render_month_view<'a>(
             let cell_height = available_height / num_weeks;
 
             // Determine if we should use compact mode
-            let compact = cell_height < MIN_CELL_HEIGHT_FOR_FULL_EVENTS
-                || cell_width < MIN_CELL_WIDTH_FOR_FULL_EVENTS;
+            let compact = should_use_compact(cell_width, cell_height);
 
             if let Some(overlay) = render_date_events_overlay(
                 &weeks,
