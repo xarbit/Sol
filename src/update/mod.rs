@@ -51,7 +51,7 @@ pub fn handle_message(app: &mut CosmicCalendar, message: Message) -> Task<Messag
             DialogManager::handle_action(&mut app.active_dialog, action);
         }
         Message::CloseDialog => {
-            debug!("Message::CloseDialog: Closing all dialogs");
+            debug!("Message::CloseDialog: Closing dialogs");
             // Close all legacy dialog fields
             #[allow(deprecated)]
             {
@@ -60,8 +60,13 @@ pub fn handle_message(app: &mut CosmicCalendar, message: Message) -> Task<Messag
                 app.delete_calendar_dialog = None;
                 app.color_picker_open = None;
             }
-            // Also close via DialogManager for future migration
-            DialogManager::close(&mut app.active_dialog);
+            // For quick events: only dismiss if empty (focus loss behavior)
+            // For other dialogs: close unconditionally
+            if app.active_dialog.is_quick_event() {
+                DialogManager::dismiss_empty_quick_event(&mut app.active_dialog);
+            } else {
+                DialogManager::close(&mut app.active_dialog);
+            }
         }
 
         // === View Navigation ===
