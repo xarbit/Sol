@@ -52,6 +52,9 @@ pub struct DayCellConfig {
     /// Whether this day is from an adjacent month (shown grayed out)
     pub is_adjacent_month: bool,
     pub events: Vec<DisplayEvent>,
+    /// Slot assignments for multi-day events: maps event UID to slot index
+    /// Events with slots are rendered in slot order, others fill remaining space
+    pub event_slots: std::collections::HashMap<String, usize>,
     /// If Some, show quick event input with (editing_text, calendar_color)
     pub quick_event: Option<(String, String)>,
     /// Whether this day is part of the current drag selection range
@@ -103,9 +106,9 @@ pub fn render_day_cell_with_events(config: DayCellConfig) -> Element<'static, Me
             content = content.push(quick_event_container);
         }
 
-        // Show existing events (max 3 visible in month view)
-        if !config.events.is_empty() {
-            let split_events = render_split_events(config.events, 3);
+        // Show existing events (max 5 visible in month view)
+        if !config.events.is_empty() && date.is_some() {
+            let split_events = render_split_events(config.events, 5, date.unwrap(), &config.event_slots);
 
             // All-day events: edge-to-edge, no horizontal padding
             if let Some(all_day) = split_events.all_day {

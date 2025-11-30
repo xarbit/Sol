@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use chrono::{Datelike, NaiveDate};
 use cosmic::iced::widget::stack;
 use cosmic::iced::{alignment, Length, Size};
@@ -73,6 +75,65 @@ fn render_weekday_header(show_week_numbers: bool, use_short_names: bool) -> Elem
     header_row.into()
 }
 
+/// Compute slot assignments for multi-day all-day events in a week.
+/// Returns a map of event UID -> slot index.
+/// Events that span multiple days get consistent slots across all days they appear.
+fn compute_week_event_slots(
+    week: &[CalendarDay],
+    events_by_date: &HashMap<NaiveDate, Vec<DisplayEvent>>,
+) -> HashMap<String, usize> {
+    let mut slots: HashMap<String, usize> = HashMap::new();
+    let mut next_slot: usize = 0;
+
+    // Get dates for this week
+    let week_dates: Vec<NaiveDate> = week
+        .iter()
+        .filter_map(|d| NaiveDate::from_ymd_opt(d.year, d.month, d.day))
+        .collect();
+
+    if week_dates.is_empty() {
+        return slots;
+    }
+
+    let week_start = week_dates[0];
+    let week_end = week_dates[week_dates.len() - 1];
+
+    // Collect all multi-day all-day events that appear in this week
+    // We need to find them and sort by their start date
+    let mut multi_day_events: Vec<(NaiveDate, NaiveDate, String)> = Vec::new();
+    let mut seen_uids: std::collections::HashSet<String> = std::collections::HashSet::new();
+
+    for date in &week_dates {
+        if let Some(day_events) = events_by_date.get(date) {
+            for event in day_events {
+                if event.is_multi_day() && !seen_uids.contains(&event.uid) {
+                    if let (Some(start), Some(end)) = (event.span_start, event.span_end) {
+                        // Only include if it overlaps with this week
+                        if start <= week_end && end >= week_start {
+                            seen_uids.insert(event.uid.clone());
+                            multi_day_events.push((start, end, event.uid.clone()));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Sort by start date, then by end date (longer events first for stable ordering)
+    multi_day_events.sort_by(|a, b| {
+        a.0.cmp(&b.0)
+            .then_with(|| b.1.cmp(&a.1)) // Longer events first (earlier end = shorter)
+    });
+
+    // Assign slots in order
+    for (_, _, uid) in multi_day_events {
+        slots.insert(uid, next_slot);
+        next_slot += 1;
+    }
+
+    slots
+}
+
 pub fn render_month_view<'a>(
     calendar_state: &CalendarState,
     selected_date: Option<NaiveDate>,
@@ -100,6 +161,12 @@ pub fn render_month_view<'a>(
 
     // Use pre-calculated weeks from CalendarState cache (with adjacent month days)
     for (week_index, week) in calendar_state.weeks_full.iter().enumerate() {
+        // Compute slot assignments for multi-day events in this week
+        let event_slots = events
+            .as_ref()
+            .map(|e| compute_week_event_slots(week, e.events_by_date))
+            .unwrap_or_default();
+
         let mut week_row = row().spacing(SPACING_TINY).height(Length::Fill);
 
         // Week number cell (only if enabled)
@@ -138,6 +205,7 @@ pub fn render_month_view<'a>(
             let is_weekend = locale.is_weekend(weekday);
 
             // Get events for this day using full date as key (works for adjacent months too)
+            // Include all events - multi-day events show in each cell they span
             let day_events: Vec<DisplayEvent> = if let Some(date) = NaiveDate::from_ymd_opt(year, month, day) {
                 events
                     .as_ref()
@@ -175,6 +243,7 @@ pub fn render_month_view<'a>(
                 is_weekend,
                 is_adjacent_month: !is_current_month,
                 events: day_events,
+                event_slots: event_slots.clone(),
                 quick_event: quick_event_data,
                 is_in_selection,
                 selection_active,
@@ -191,14 +260,19 @@ pub fn render_month_view<'a>(
 
     // Check if we need to render a spanning quick event overlay
     // Used for all quick events (single-day and multi-day) for consistent UX
-    let has_spanning_overlay = events
+    let has_quick_event_overlay = events
         .as_ref()
         .map(|e| e.active_dialog.is_quick_event())
         .unwrap_or(false);
 
-    if has_spanning_overlay {
-        // Get the quick event data for the overlay
-        let overlay = events.as_ref().and_then(|e| {
+    // Build the final view with quick event overlay if needed
+    let base = container(grid)
+        .width(Length::Fill)
+        .height(Length::Fill);
+
+    // If we have a quick event input, add that overlay on top
+    if has_quick_event_overlay {
+        let quick_overlay = events.as_ref().and_then(|e| {
             e.active_dialog.quick_event_range().map(|(start, end, text)| {
                 let color = e.quick_event
                     .as_ref()
@@ -216,20 +290,12 @@ pub fn render_month_view<'a>(
             })
         });
 
-        if let Some(overlay_element) = overlay {
-            // Use stack to layer the overlay on top of the grid
-            let base = container(grid)
-                .width(Length::Fill)
-                .height(Length::Fill);
-
+        if let Some(overlay_element) = quick_overlay {
             return stack![base, overlay_element].into();
         }
     }
 
-    container(grid)
-        .width(Length::Fill)
-        .height(Length::Fill)
-        .into()
+    base.into()
 }
 
 /// Render the spanning quick event overlay positioned over the selected date range
@@ -347,3 +413,4 @@ fn render_spanning_overlay<'a>(
         .height(Length::Fill)
         .into()
 }
+

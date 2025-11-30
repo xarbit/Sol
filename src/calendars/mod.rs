@@ -227,6 +227,8 @@ impl CalendarManager {
                                     color: calendar_color.clone(),
                                     all_day: true,
                                     start_time: None,
+                                    span_start: Some(event_start),
+                                    span_end: Some(event_end),
                                 };
                                 events_by_date
                                     .entry(current)
@@ -255,6 +257,8 @@ impl CalendarManager {
                                 color: calendar_color.clone(),
                                 all_day: event.all_day,
                                 start_time,
+                                span_start: None,
+                                span_end: None,
                             };
                             events_by_date
                                 .entry(event_start)

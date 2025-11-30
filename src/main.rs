@@ -29,7 +29,9 @@ mod views;
 
 use app::CosmicCalendar;
 use cosmic::app::Settings;
+use database::Database;
 use log::info;
+use std::env;
 
 /// Application entry point
 pub fn main() -> cosmic::iced::Result {
@@ -37,6 +39,30 @@ pub fn main() -> cosmic::iced::Result {
     logging::init();
 
     info!("Sol Calendar starting...");
+
+    // Check for --clear-events flag
+    let args: Vec<String> = env::args().collect();
+    if args.contains(&"--clear-events".to_string()) {
+        info!("--clear-events flag detected, clearing all events from database");
+        match Database::open() {
+            Ok(db) => {
+                match db.clear_all_events() {
+                    Ok(count) => {
+                        info!("Cleared {} events from database", count);
+                        println!("Cleared {} events from database", count);
+                    }
+                    Err(e) => {
+                        log::error!("Failed to clear events: {}", e);
+                        eprintln!("Failed to clear events: {}", e);
+                    }
+                }
+            }
+            Err(e) => {
+                log::error!("Failed to open database: {}", e);
+                eprintln!("Failed to open database: {}", e);
+            }
+        }
+    }
 
     // Initialize localization system
     localize::init();

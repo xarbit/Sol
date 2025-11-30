@@ -363,6 +363,13 @@ impl Database {
         )?;
         Ok(rows)
     }
+
+    /// Delete all events from all calendars
+    /// Used for development/testing to start fresh
+    pub fn clear_all_events(&self) -> Result<usize, Box<dyn Error>> {
+        let rows = self.conn.execute("DELETE FROM events", [])?;
+        Ok(rows)
+    }
 }
 
 #[cfg(test)]
