@@ -23,6 +23,8 @@ pub enum Message {
     SelectDayNoNavigate(NaiveDate),
 
     // UI state
+    /// Timer tick for updating current time indicator (every minute)
+    TimeTick,
     ToggleSidebar,
     /// Triggered on window resize to sync sidebar with condensed state
     WindowResized,

@@ -7,6 +7,11 @@ use cosmic::{widget, Element};
 use std::collections::HashMap;
 
 use crate::components::{DisplayEvent, parse_hex_color, quick_event_input_id};
+
+/// Returns the scrollable ID for the week view time grid
+pub fn week_time_grid_id() -> cosmic::iced_core::id::Id {
+    cosmic::iced_core::id::Id::new("week_time_grid")
+}
 use crate::dialogs::ActiveDialog;
 use crate::locale::LocalePreferences;
 use crate::localized_names;
@@ -89,7 +94,11 @@ pub fn render_week_view<'a>(
     let content = column()
         .spacing(0)
         .push(header_section)
-        .push(scrollable(time_grid).height(Length::Fill));
+        .push(
+            scrollable(time_grid)
+                .id(week_time_grid_id())
+                .height(Length::Fill)
+        );
 
     container(content)
         .width(Length::Fill)
@@ -302,7 +311,7 @@ fn render_all_day_events_for_day(date: NaiveDate, events: &[DisplayEvent], selec
             })),
             text_color: Some(cosmic::iced::Color::WHITE),
             border: Border {
-                radius: 3.0.into(),
+                radius: BORDER_RADIUS.into(),
                 width: border_width,
                 color: if is_selected {
                     theme.cosmic().accent_color().into()
@@ -384,6 +393,7 @@ fn render_time_grid_with_events<'a>(
             &day_events,
             is_weekend,
             is_today_column,
+            today_column_index.is_some(), // today_in_week - true if today is visible in this week
             current_hour,
             current_minute,
             selected_event_uid,
@@ -443,6 +453,7 @@ fn render_day_column_with_events(
     events: &[DisplayEvent],
     is_weekend: bool,
     is_today: bool,
+    today_in_week: bool,
     current_hour: u32,
     current_minute: u32,
     selected_event_uid: Option<&str>,
@@ -450,7 +461,7 @@ fn render_day_column_with_events(
     quick_event: Option<(NaiveTime, NaiveTime, &str, &str)>, // (start_time, end_time, text, color)
 ) -> Element<'static, Message> {
     // Build the base hour grid (background layer) - now with click support
-    let hour_grid = render_hour_grid_background(date, is_weekend, is_today, current_hour, current_minute, selection);
+    let hour_grid = render_hour_grid_background(date, is_weekend, is_today, today_in_week, current_hour, current_minute, selection);
 
     // Build quick event input layer if active
     let quick_event_layer = quick_event.map(|(start_time, end_time, text, color)| {
@@ -495,6 +506,7 @@ fn render_hour_grid_background(
     date: NaiveDate,
     is_weekend: bool,
     is_today: bool,
+    today_in_week: bool,
     current_hour: u32,
     current_minute: u32,
     selection: Option<&SelectionState>,
@@ -502,13 +514,16 @@ fn render_hour_grid_background(
     let mut hour_cells = column().spacing(0);
 
     for hour in 0..24u32 {
-        let show_time_indicator = is_today && hour == current_hour;
+        // Show time line in all columns if today is in this week and it's the current hour
+        let show_time_line = today_in_week && hour == current_hour;
+        // Show the dot only on today's column
+        let show_time_dot = is_today && hour == current_hour;
         // Check if this hour cell is within the current selection
         let is_selected = selection.map(|s| s.is_active && s.contains_time(date, hour)).unwrap_or(false);
 
-        let cell = if show_time_indicator {
+        let cell = if show_time_line {
             let minute_offset = (current_minute as f32 / 60.0) * HOUR_ROW_HEIGHT;
-            render_clickable_hour_cell_with_indicator(date, hour, is_weekend, minute_offset, is_selected)
+            render_clickable_hour_cell_with_indicator(date, hour, is_weekend, minute_offset, is_selected, show_time_dot)
         } else {
             render_clickable_hour_cell(date, hour, is_weekend, is_selected)
         };
@@ -637,7 +652,7 @@ fn render_positioned_event_block(
         })),
         text_color: Some(cosmic::iced::Color::WHITE),
         border: Border {
-            radius: 3.0.into(),
+            radius: BORDER_RADIUS.into(),
             width: border_width,
             color: if is_selected {
                 theme.cosmic().accent_color().into()
@@ -727,40 +742,75 @@ fn render_clickable_hour_cell_with_indicator(
     is_weekend: bool,
     minute_offset: f32,
     is_selected: bool,
+    show_dot: bool,
 ) -> Element<'static, Message> {
     // Create the time for this hour cell
     let start_time = NaiveTime::from_hms_opt(hour, 0, 0).unwrap();
 
-    // Create padding at top to position the line
+    // The line spans full width in all columns
+    // Dot is 8px, line is 2px - both centered vertically in an 8px row
+    let dot_size = 8.0_f32;
+    let line_height = 2.0_f32;
+
+    // Adjust the top spacer to account for the indicator being 8px tall (dot height)
+    // We want the CENTER of the indicator (where the line is) to be at minute_offset
+    // So we subtract half the dot size from the offset
+    let adjusted_offset = (minute_offset - (dot_size / 2.0)).max(0.0);
     let top_spacer = container(widget::text(""))
-        .height(Length::Fixed(minute_offset.max(0.0)))
+        .height(Length::Fixed(adjusted_offset))
         .width(Length::Fill);
 
-    // Time indicator line
-    let time_indicator = row()
-        .spacing(0)
-        .push(
+    // Time indicator - line in all columns, dot overlaid on today's column only
+    let time_indicator: Element<'static, Message> = if show_dot {
+        // Today's column: dot on left, line filling the rest, vertically centered
+        let dot = container(widget::text(""))
+            .width(Length::Fixed(dot_size))
+            .height(Length::Fixed(dot_size))
+            .style(|_theme: &cosmic::Theme| container::Style {
+                background: Some(Background::Color(COLOR_CURRENT_TIME)),
+                border: Border {
+                    radius: 4.0.into(), // dot_size / 2.0
+                    ..Default::default()
+                },
+                ..Default::default()
+            });
+
+        // Line with vertical padding to center it within the 8px row height
+        let time_line = container(
             container(widget::text(""))
-                .width(Length::Fixed(8.0))
-                .height(Length::Fixed(8.0))
+                .width(Length::Fill)
+                .height(Length::Fixed(line_height))
                 .style(|_theme: &cosmic::Theme| container::Style {
                     background: Some(Background::Color(COLOR_CURRENT_TIME)),
-                    border: Border {
-                        radius: 4.0.into(),
-                        ..Default::default()
-                    },
                     ..Default::default()
                 })
         )
-        .push(
+        .width(Length::Fill)
+        .height(Length::Fixed(dot_size))
+        .align_y(alignment::Vertical::Center);
+
+        row()
+            .spacing(0)
+            .align_y(alignment::Vertical::Center)
+            .push(dot)
+            .push(time_line)
+            .into()
+    } else {
+        // Other columns: just the line, centered vertically in 8px height to match dot columns
+        container(
             container(widget::text(""))
                 .width(Length::Fill)
-                .height(Length::Fixed(2.0))
+                .height(Length::Fixed(line_height))
                 .style(|_theme: &cosmic::Theme| container::Style {
                     background: Some(Background::Color(COLOR_CURRENT_TIME)),
                     ..Default::default()
                 })
-        );
+        )
+        .width(Length::Fill)
+        .height(Length::Fixed(dot_size))
+        .align_y(alignment::Vertical::Center)
+        .into()
+    };
 
     let content = column()
         .spacing(0)

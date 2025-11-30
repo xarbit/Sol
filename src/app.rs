@@ -420,7 +420,10 @@ impl Application for CosmicCalendar {
     }
 
     fn subscription(&self) -> cosmic::iced::Subscription<Self::Message> {
-        cosmic::iced::event::listen_with(|event, _status, _window_id| {
+        use cosmic::iced::Subscription;
+
+        // Event listener for keyboard, window resize, and mouse events
+        let event_sub = cosmic::iced::event::listen_with(|event, _status, _window_id| {
             match event {
                 // Handle keyboard shortcuts
                 cosmic::iced::Event::Keyboard(keyboard::Event::KeyPressed {
@@ -471,6 +474,12 @@ impl Application for CosmicCalendar {
                 }
                 _ => None,
             }
-        })
+        });
+
+        // Timer subscription for updating the current time indicator (every 30 seconds)
+        let timer_sub = cosmic::iced::time::every(std::time::Duration::from_secs(30))
+            .map(|_| Message::TimeTick);
+
+        Subscription::batch([event_sub, timer_sub])
     }
 }
