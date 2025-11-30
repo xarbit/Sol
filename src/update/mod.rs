@@ -19,7 +19,7 @@ use log::{debug, info};
 
 use crate::app::CosmicCalendar;
 use crate::components::quick_event_input_id;
-use crate::dialogs::DialogManager;
+use crate::dialogs::{ActiveDialog, DialogManager};
 use crate::message::Message;
 use crate::services::SettingsHandler;
 use cosmic::iced_widget::text_input;
@@ -38,15 +38,12 @@ fn focus_quick_event_input() -> Task<Message> {
     text_input::focus(quick_event_input_id())
 }
 
-/// Close all legacy dialog fields (deprecated, will be removed after full migration)
-/// This helper centralizes the cleanup of old dialog state fields
+/// Close the legacy event dialog field
+/// This helper is kept because text_editor::Content doesn't implement Clone
 #[allow(deprecated)]
 #[inline]
-fn close_legacy_dialogs(app: &mut CosmicCalendar) {
+fn close_legacy_event_dialog(app: &mut CosmicCalendar) {
     app.event_dialog = None;
-    app.calendar_dialog = None;
-    app.delete_calendar_dialog = None;
-    app.color_picker_open = None;
 }
 
 // Re-export handlers for use in this module
@@ -84,7 +81,8 @@ pub fn handle_message(app: &mut CosmicCalendar, message: Message) -> Task<Messag
         }
         Message::CloseDialog => {
             debug!("Message::CloseDialog: Closing dialogs");
-            close_legacy_dialogs(app);
+            // Close legacy event dialog
+            close_legacy_event_dialog(app);
             // For quick events: only dismiss if empty (focus loss behavior)
             // For other dialogs: close unconditionally
             if app.active_dialog.is_quick_event() {
@@ -143,84 +141,81 @@ pub fn handle_message(app: &mut CosmicCalendar, message: Message) -> Task<Messag
 
         // === Calendar Management ===
         Message::ToggleCalendar(id) => {
-            // Close color picker when interacting with other elements
-            #[allow(deprecated)]
-            { app.color_picker_open = None; }
+            // Close dialogs when interacting with other elements
+            DialogManager::close(&mut app.active_dialog);
             handle_toggle_calendar(app, id);
         }
         Message::SelectCalendar(id) => {
-            // Close color picker when selecting a different calendar
-            #[allow(deprecated)]
-            { app.color_picker_open = None; }
+            // Close dialogs when selecting a different calendar
+            DialogManager::close(&mut app.active_dialog);
             app.selected_calendar_id = Some(id);
             app.update_selected_calendar_color();
         }
         Message::ToggleColorPicker(id) => {
             // Toggle: if already open for this calendar, close it; otherwise open it
-            #[allow(deprecated)]
-            if app.color_picker_open.as_ref() == Some(&id) {
-                app.color_picker_open = None;
+            if app.active_dialog.color_picker_calendar_id() == Some(&id) {
+                DialogManager::close(&mut app.active_dialog);
             } else {
-                app.color_picker_open = Some(id);
+                DialogManager::open(&mut app.active_dialog, ActiveDialog::ColorPicker { calendar_id: id });
             }
         }
         Message::CloseColorPicker => {
-            #[allow(deprecated)]
-            { app.color_picker_open = None; }
+            DialogManager::close(&mut app.active_dialog);
         }
         Message::ChangeCalendarColor(id, color) => {
             handle_change_calendar_color(app, id, color);
         }
         Message::OpenNewCalendarDialog => {
-            #[allow(deprecated)]
-            { app.color_picker_open = None; }
+            DialogManager::close(&mut app.active_dialog);
             handle_open_calendar_dialog_create(app);
         }
         Message::OpenEditCalendarDialog(id) => {
-            #[allow(deprecated)]
-            { app.color_picker_open = None; }
+            DialogManager::close(&mut app.active_dialog);
             handle_open_calendar_dialog_edit(app, id);
         }
         Message::EditCalendarByIndex(index) => {
-            #[allow(deprecated)]
-            { app.color_picker_open = None; }
+            DialogManager::close(&mut app.active_dialog);
             if let Some(calendar) = app.calendar_manager.sources().get(index) {
                 let id = calendar.info().id.clone();
                 handle_open_calendar_dialog_edit(app, id);
             }
         }
         Message::CalendarDialogNameChanged(name) => {
-            #[allow(deprecated)]
-            if let Some(ref mut dialog) = app.calendar_dialog {
-                dialog.name = name;
+            // Update calendar dialog name via active_dialog
+            match &mut app.active_dialog {
+                ActiveDialog::CalendarCreate { name: n, .. }
+                | ActiveDialog::CalendarEdit { name: n, .. } => {
+                    *n = name;
+                }
+                _ => {}
             }
         }
         Message::CalendarDialogColorChanged(color) => {
-            #[allow(deprecated)]
-            if let Some(ref mut dialog) = app.calendar_dialog {
-                dialog.color = color;
+            // Update calendar dialog color via active_dialog
+            match &mut app.active_dialog {
+                ActiveDialog::CalendarCreate { color: c, .. }
+                | ActiveDialog::CalendarEdit { color: c, .. } => {
+                    *c = color;
+                }
+                _ => {}
             }
         }
         Message::ConfirmCalendarDialog => {
             handle_confirm_calendar_dialog(app);
         }
         Message::CancelCalendarDialog => {
-            #[allow(deprecated)]
-            { app.calendar_dialog = None; }
+            DialogManager::close(&mut app.active_dialog);
         }
         Message::DeleteSelectedCalendar => {
-            #[allow(deprecated)]
-            { app.color_picker_open = None; }
+            DialogManager::close(&mut app.active_dialog);
             handle_delete_selected_calendar(app);
         }
         Message::RequestDeleteCalendar(id) => {
-            #[allow(deprecated)]
-            { app.color_picker_open = None; }
+            DialogManager::close(&mut app.active_dialog);
             handle_request_delete_calendar(app, id);
         }
         Message::SelectCalendarByIndex(index) => {
-            #[allow(deprecated)]
-            { app.color_picker_open = None; }
+            DialogManager::close(&mut app.active_dialog);
             if let Some(calendar) = app.calendar_manager.sources().get(index) {
                 let id = calendar.info().id.clone();
                 app.selected_calendar_id = Some(id);
@@ -228,8 +223,7 @@ pub fn handle_message(app: &mut CosmicCalendar, message: Message) -> Task<Messag
             }
         }
         Message::DeleteCalendarByIndex(index) => {
-            #[allow(deprecated)]
-            { app.color_picker_open = None; }
+            DialogManager::close(&mut app.active_dialog);
             if let Some(calendar) = app.calendar_manager.sources().get(index) {
                 let id = calendar.info().id.clone();
                 handle_request_delete_calendar(app, id);
@@ -239,8 +233,7 @@ pub fn handle_message(app: &mut CosmicCalendar, message: Message) -> Task<Messag
             handle_confirm_delete_calendar(app);
         }
         Message::CancelDeleteCalendar => {
-            #[allow(deprecated)]
-            { app.delete_calendar_dialog = None; }
+            DialogManager::close(&mut app.active_dialog);
         }
 
         // === Selection - Drag Selection for Multi-Day Events ===

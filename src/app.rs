@@ -22,38 +22,6 @@ use std::collections::HashMap;
 
 const APP_ID: &str = "io.github.xarbit.SolCalendar";
 
-/// Mode for the calendar dialog (Create or Edit)
-#[derive(Debug, Clone, PartialEq)]
-pub enum CalendarDialogMode {
-    /// Creating a new calendar
-    Create,
-    /// Editing an existing calendar
-    Edit {
-        /// ID of the calendar being edited
-        calendar_id: String,
-    },
-}
-
-/// State for the calendar dialog (used for both Create and Edit)
-#[derive(Debug, Clone)]
-pub struct CalendarDialogState {
-    /// Dialog mode - Create or Edit
-    pub mode: CalendarDialogMode,
-    /// Calendar name being entered/edited
-    pub name: String,
-    /// Selected color for the calendar
-    pub color: String,
-}
-
-/// State for the delete calendar confirmation dialog
-#[derive(Debug, Clone)]
-pub struct DeleteCalendarDialogState {
-    /// ID of the calendar to delete
-    pub calendar_id: String,
-    /// Name of the calendar (for display in confirmation)
-    pub calendar_name: String,
-}
-
 /// Enum for which field is being edited in the event dialog
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EventDialogField {
@@ -157,19 +125,10 @@ pub struct CosmicCalendar {
     /// Drag selection state for multi-day event creation
     pub selection_state: SelectionState,
 
-    // Legacy fields - to be removed after full migration
-    /// Calendar dialog state (for Create/Edit) - None when dialog is closed
-    #[deprecated(note = "Use active_dialog instead")]
-    pub calendar_dialog: Option<CalendarDialogState>,
-    /// Delete calendar confirmation dialog state - None when dialog is closed
-    #[deprecated(note = "Use active_dialog instead")]
-    pub delete_calendar_dialog: Option<DeleteCalendarDialogState>,
+    // Legacy field - kept because text_editor::Content doesn't implement Clone
     /// Event dialog state (for Create/Edit) - None when dialog is closed
-    #[deprecated(note = "Use active_dialog instead")]
+    #[deprecated(note = "Will be migrated to active_dialog when text_editor::Content supports Clone")]
     pub event_dialog: Option<EventDialogState>,
-    /// Color picker open state
-    #[deprecated(note = "Use active_dialog instead")]
-    pub color_picker_open: Option<String>,
 }
 
 impl CosmicCalendar {
@@ -245,11 +204,8 @@ impl CosmicCalendar {
             selected_calendar_color,
             active_dialog: ActiveDialog::None,
             selection_state: SelectionState::new(),
-            // Legacy fields - kept for backwards compatibility during migration
-            calendar_dialog: None,
-            delete_calendar_dialog: None,
+            // Legacy field - kept because text_editor::Content doesn't implement Clone
             event_dialog: None,
-            color_picker_open: None,
         }
     }
 
@@ -344,7 +300,7 @@ impl CosmicCalendar {
             &self.mini_calendar_state,
             self.calendar_manager.sources(),
             selected_day,
-            self.color_picker_open.as_ref(),
+            &self.active_dialog,
             self.selected_calendar_id.as_ref(),
         )
     }

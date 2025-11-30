@@ -4,6 +4,7 @@ use cosmic::Element;
 
 use crate::calendars::CalendarSource;
 use crate::components::{render_calendar_list, render_mini_calendar};
+use crate::dialogs::ActiveDialog;
 use crate::message::Message;
 use crate::models::CalendarState;
 use crate::ui_constants::{SIDEBAR_WIDTH, SPACING_LARGE, PADDING_STANDARD};
@@ -12,13 +13,13 @@ pub fn render_sidebar<'a>(
     calendar_state: &CalendarState,
     calendars: &'a [Box<dyn CalendarSource>],
     selected_day: Option<u32>,
-    color_picker_open: Option<&'a String>,
+    active_dialog: &'a ActiveDialog,
     selected_calendar_id: Option<&'a String>,
 ) -> Element<'a, Message> {
     let mini_calendar = render_mini_calendar(calendar_state, selected_day);
 
     // Use the calendar list component
-    let calendars_section = render_calendar_list(calendars, color_picker_open, selected_calendar_id);
+    let calendars_section = render_calendar_list(calendars, active_dialog, selected_calendar_id);
 
     // Scrollable top section with calendars
     let scrollable_content = scrollable(

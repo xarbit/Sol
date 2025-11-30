@@ -5,6 +5,7 @@ use std::collections::HashMap;
 
 use crate::calendars::CalendarSource;
 use crate::components::{render_color_indicator, render_quick_color_picker};
+use crate::dialogs::ActiveDialog;
 use crate::fl;
 use crate::message::Message;
 use crate::ui_constants::{SPACING_MEDIUM, SPACING_SMALL, PADDING_MEDIUM, FONT_SIZE_BODY, PADDING_COLOR_PICKER_NESTED, COLOR_INDICATOR_SIZE};
@@ -45,7 +46,7 @@ fn calendar_context_menu(index: usize) -> Option<Vec<menu::Tree<Message>>> {
 /// Render the list of calendars with checkboxes, color pickers, and selection
 pub fn render_calendar_list<'a>(
     calendars: &'a [Box<dyn CalendarSource>],
-    color_picker_open: Option<&String>,
+    active_dialog: &ActiveDialog,
     selected_calendar_id: Option<&String>,
 ) -> Element<'a, Message> {
     let mut calendar_list = column()
@@ -56,7 +57,7 @@ pub fn render_calendar_list<'a>(
     for (index, calendar) in calendars.iter().enumerate() {
         let info = calendar.info();
         let is_enabled = calendar.is_enabled();
-        let is_picker_open = color_picker_open.map(|id| id == &info.id).unwrap_or(false);
+        let is_picker_open = active_dialog.color_picker_calendar_id() == Some(&info.id);
         let is_selected = selected_calendar_id.map(|id| id == &info.id).unwrap_or(false);
 
         // Use the color picker component for the indicator

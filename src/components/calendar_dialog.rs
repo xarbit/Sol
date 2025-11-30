@@ -3,8 +3,8 @@ use cosmic::iced::Length;
 use cosmic::widget::{button, column, container, mouse_area, row, text, text_input};
 use cosmic::{widget, Element};
 
-use crate::app::{CalendarDialogMode, CalendarDialogState, DeleteCalendarDialogState};
 use crate::components::color_picker::{parse_hex_color, QUICK_PICKER_COLORS};
+use crate::dialogs::ActiveDialog;
 use crate::fl;
 use crate::message::Message;
 use crate::styles::color_button_style;
@@ -14,10 +14,16 @@ use crate::ui_constants::{
 };
 
 /// Render the calendar dialog (Create or Edit mode)
-pub fn render_calendar_dialog(state: &CalendarDialogState) -> Element<'_, Message> {
-    let is_edit_mode = matches!(state.mode, CalendarDialogMode::Edit { .. });
+/// Takes the active dialog state which should be CalendarCreate or CalendarEdit variant
+pub fn render_calendar_dialog(active_dialog: &ActiveDialog) -> Element<'_, Message> {
+    // Extract data from active_dialog
+    let (is_edit_mode, name, current_color) = match active_dialog {
+        ActiveDialog::CalendarCreate { name, color } => (false, name.as_str(), color.as_str()),
+        ActiveDialog::CalendarEdit { name, color, .. } => (true, name.as_str(), color.as_str()),
+        _ => return widget::text("").into(), // Should not happen
+    };
 
-    let name_input = text_input(fl!("dialog-calendar-name-placeholder"), &state.name)
+    let name_input = text_input(fl!("dialog-calendar-name-placeholder"), name)
         .on_input(Message::CalendarDialogNameChanged)
         .on_submit(|_| Message::ConfirmCalendarDialog)
         .width(Length::Fill);
@@ -31,7 +37,7 @@ pub fn render_calendar_dialog(state: &CalendarDialogState) -> Element<'_, Messag
         for hex in row_colors {
             let color = parse_hex_color(hex).unwrap_or(COLOR_DEFAULT_GRAY);
             let hex_owned = hex.to_string();
-            let is_selected = state.color == hex;
+            let is_selected = current_color == hex;
 
             let border_width = if is_selected {
                 BORDER_WIDTH_SELECTED
@@ -147,7 +153,14 @@ pub fn render_calendar_dialog(state: &CalendarDialogState) -> Element<'_, Messag
 }
 
 /// Render the delete calendar confirmation dialog
-pub fn render_delete_calendar_dialog(state: &DeleteCalendarDialogState) -> Element<'_, Message> {
+/// Takes the active dialog state which should be CalendarDelete variant
+pub fn render_delete_calendar_dialog(active_dialog: &ActiveDialog) -> Element<'_, Message> {
+    // Extract calendar name from active_dialog
+    let calendar_name = match active_dialog {
+        ActiveDialog::CalendarDelete { calendar_name, .. } => calendar_name.as_str(),
+        _ => return widget::text("").into(), // Should not happen
+    };
+
     // Dialog buttons
     let cancel_btn = button::text(fl!("button-cancel")).on_press(Message::CancelDeleteCalendar);
 
@@ -166,7 +179,7 @@ pub fn render_delete_calendar_dialog(state: &DeleteCalendarDialogState) -> Eleme
         .push(text::title4(fl!("dialog-delete-calendar-title")))
         .push(text(fl!(
             "dialog-delete-calendar-message",
-            name = state.calendar_name.clone()
+            name = calendar_name.to_string()
         )))
         .push(buttons);
 
