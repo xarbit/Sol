@@ -50,7 +50,8 @@ const DAY_CELL_TOP_PADDING: f32 = 4.0;
 /// For multi-day events, this represents one week's portion.
 #[derive(Debug, Clone)]
 struct DateEventSegment {
-    /// Event UID
+    /// Event UID (reserved for future click handling)
+    #[allow(dead_code)]
     uid: String,
     /// Event summary/title
     summary: String,

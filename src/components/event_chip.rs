@@ -76,13 +76,6 @@ impl DisplayEvent {
         }
     }
 
-    /// Get the number of days this event spans
-    pub fn span_days(&self) -> i64 {
-        match (self.span_start, self.span_end) {
-            (Some(start), Some(end)) => (end - start).num_days() + 1,
-            _ => 1,
-        }
-    }
 }
 
 /// Render an all-day event chip with colored background bar.
@@ -278,152 +271,12 @@ pub fn render_spanning_quick_event_input(
         .into()
 }
 
-/// Render a column of events for a day cell (month view)
-/// All-day events are shown first as colored bars,
-/// then timed events sorted chronologically with colored dots.
-///
-/// # Arguments
-/// * `events` - Events to render
-/// * `max_visible` - Maximum number of events to show
-/// * `current_date` - The date of the cell (for calculating span position of multi-day events)
-#[allow(dead_code)] // Keep for potential future use
-pub fn render_events_column(
-    events: Vec<DisplayEvent>,
-    max_visible: usize,
-    current_date: NaiveDate,
-) -> Element<'static, Message> {
-    // Separate all-day and timed events
-    let (mut all_day_events, mut timed_events): (Vec<_>, Vec<_>) =
-        events.into_iter().partition(|e| e.all_day);
-
-    // Sort timed events by start time
-    timed_events.sort_by(|a, b| a.start_time.cmp(&b.start_time));
-
-    // Combine: all-day first, then timed
-    let sorted_events: Vec<DisplayEvent> = all_day_events
-        .drain(..)
-        .chain(timed_events.drain(..))
-        .collect();
-
-    let mut col = column().spacing(SPACING_TINY);
-    let total = sorted_events.len();
-
-    for (i, event) in sorted_events.into_iter().enumerate() {
-        if i >= max_visible {
-            // Show "+N more" indicator
-            let remaining = total - max_visible;
-            col = col.push(
-                widget::text(format!("+{} more", remaining))
-                    .size(10)
-            );
-            break;
-        }
-        col = col.push(render_event_chip(event, current_date));
-    }
-
-    col.into()
-}
-
-/// Result of splitting events into all-day and timed categories
-pub struct SplitEventsResult {
-    /// All-day events column (edge-to-edge, no margin)
-    pub all_day: Option<Element<'static, Message>>,
-    /// Timed events column (with spacing/margin)
-    pub timed: Option<Element<'static, Message>>,
-    /// Number of events not shown (for "+N more" indicator)
-    pub overflow_count: usize,
-}
-
 /// Result containing a unified events column with placeholders and timed events
 pub struct UnifiedEventsResult {
     /// Single column containing placeholders (for date events) followed by timed events
     pub events: Option<Element<'static, Message>>,
     /// Number of events not shown (for "+N more" indicator)
     pub overflow_count: usize,
-}
-
-/// Render events split into two separate containers:
-/// - All-day events: edge-to-edge colored bars (no margin)
-/// - Timed events: dot + time format with margin/spacing
-///
-/// This allows different visual treatment for each event type in day cells.
-/// Multi-day events are rendered in their assigned slots for visual consistency.
-///
-/// # Arguments
-/// * `events` - Events to render
-/// * `max_visible` - Maximum number of events to show
-/// * `current_date` - The date of the cell (for calculating span position of multi-day events)
-/// * `event_slots` - Slot assignments for date events (UID -> slot index)
-/// * `week_max_slot` - Maximum slot index for the week (for consistent vertical positioning)
-pub fn render_split_events(
-    events: Vec<DisplayEvent>,
-    max_visible: usize,
-    current_date: NaiveDate,
-    _event_slots: &std::collections::HashMap<String, usize>,
-    week_max_slot: Option<usize>,
-) -> SplitEventsResult {
-    // Separate all-day and timed events
-    let (all_day_events, mut timed_events): (Vec<_>, Vec<_>) =
-        events.into_iter().partition(|e| e.all_day);
-
-    // Sort timed events by start time
-    timed_events.sort_by(|a, b| a.start_time.cmp(&b.start_time));
-
-    // Use the week's max_slot to determine placeholder count
-    // This ensures ALL day cells in the week reserve the same vertical space for date events
-    // The overlay renders max_slot+1 rows (slots 0 to max_slot), so we need the same
-    let total_placeholders = week_max_slot.map(|m| m + 1).unwrap_or(0);
-
-
-    // Count actual events for overflow calculation
-    let actual_date_events_on_day = all_day_events.len();
-    let total_events = actual_date_events_on_day + timed_events.len();
-    let mut shown = 0;
-
-    // All date events are rendered in the overlay layer (month.rs)
-    // Render placeholders here to maintain slot alignment for date-time events below
-    // Use same spacing as overlay (DATE_EVENT_SPACING = 2) for proper alignment
-    let all_day = if total_placeholders > 0 {
-        let mut col = column().spacing(DATE_EVENT_PLACEHOLDER_SPACING);
-        for _ in 0..total_placeholders {
-            if shown >= max_visible {
-                break;
-            }
-            // Placeholder to maintain vertical spacing
-            col = col.push(render_empty_slot_placeholder());
-            shown += 1;
-        }
-        Some(col.into())
-    } else {
-        None
-    };
-
-    // Render timed events
-    let timed = if !timed_events.is_empty() && shown < max_visible {
-        let mut col = column().spacing(SPACING_TINY);
-        for event in timed_events {
-            if shown >= max_visible {
-                break;
-            }
-            col = col.push(render_event_chip(event, current_date));
-            shown += 1;
-        }
-        Some(col.into())
-    } else {
-        None
-    };
-
-    let overflow_count = if total_events > max_visible {
-        total_events - max_visible
-    } else {
-        0
-    };
-
-    SplitEventsResult {
-        all_day,
-        timed,
-        overflow_count,
-    }
 }
 
 /// Render an empty placeholder to maintain slot alignment
@@ -508,65 +361,6 @@ pub fn render_unified_events(
     }
 }
 
-/// Render a spanning multi-day event chip that stretches across columns
-/// Used in the overlay layer for multi-day all-day events
-///
-/// # Arguments
-/// * `summary` - Event title
-/// * `color_hex` - Hex color string for the event (from calendar)
-/// * `span_position` - Position within the span (First, Middle, Last, Single)
-pub fn render_spanning_event_chip(
-    summary: String,
-    color_hex: &str,
-    span_position: SpanPosition,
-) -> Element<'static, Message> {
-    let color = parse_hex_color(color_hex).unwrap_or(COLOR_DEFAULT_GRAY);
-
-    // Only show text on the first segment (or single segment)
-    let show_text = matches!(span_position, SpanPosition::First | SpanPosition::Single);
-
-    // Border radius based on position:
-    // First: rounded left, flat right
-    // Middle: flat both sides
-    // Last: flat left, rounded right
-    // Single: rounded both sides
-    let radius = BORDER_RADIUS[0];
-    let border_radius = match span_position {
-        SpanPosition::Single => [radius, radius, radius, radius],
-        SpanPosition::First => [radius, 0.0, 0.0, radius],
-        SpanPosition::Middle => [0.0, 0.0, 0.0, 0.0],
-        SpanPosition::Last => [0.0, radius, radius, 0.0],
-    };
-
-    let content: Element<'static, Message> = if show_text {
-        widget::text(summary)
-            .size(11)
-            .wrapping(Wrapping::None)
-            .into()
-    } else {
-        // Empty container for continuation segments
-        widget::text("").into()
-    };
-
-    container(content)
-        .padding([2, 4])
-        .width(Length::Fill)
-        .clip(true)
-        .style(move |_theme: &cosmic::Theme| {
-            container::Style {
-                background: Some(cosmic::iced::Background::Color(color.scale_alpha(0.3))),
-                border: cosmic::iced::Border {
-                    color: cosmic::iced::Color::TRANSPARENT,
-                    width: 0.0,
-                    radius: border_radius.into(),
-                },
-                text_color: Some(color),
-                ..Default::default()
-            }
-        })
-        .into()
-}
-
 /// Height of compact event indicators (thin lines)
 const COMPACT_EVENT_HEIGHT: f32 = 6.0;
 
@@ -576,37 +370,6 @@ pub struct CompactEventsResult {
     pub element: Option<Element<'static, Message>>,
     /// Number of events not shown
     pub overflow_count: usize,
-}
-
-/// Render a compact event indicator (thin colored line without text)
-/// Used when cell size is too small for full event chips
-fn render_compact_event_indicator(
-    color: cosmic::iced::Color,
-    span_position: SpanPosition,
-) -> Element<'static, Message> {
-    let radius = 2.0;
-    let border_radius: [f32; 4] = match span_position {
-        SpanPosition::Single => [radius, radius, radius, radius],
-        SpanPosition::First => [radius, 0.0, 0.0, radius],
-        SpanPosition::Middle => [0.0, 0.0, 0.0, 0.0],
-        SpanPosition::Last => [0.0, radius, radius, 0.0],
-    };
-
-    container(widget::text(""))
-        .width(Length::Fill)
-        .height(Length::Fixed(COMPACT_EVENT_HEIGHT))
-        .style(move |_theme: &cosmic::Theme| {
-            container::Style {
-                background: Some(cosmic::iced::Background::Color(color.scale_alpha(0.6))),
-                border: cosmic::iced::Border {
-                    color: cosmic::iced::Color::TRANSPARENT,
-                    width: 0.0,
-                    radius: border_radius.into(),
-                },
-                ..Default::default()
-            }
-        })
-        .into()
 }
 
 /// Render a compact timed event indicator (small colored dot)
