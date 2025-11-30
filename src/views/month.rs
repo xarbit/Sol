@@ -32,11 +32,11 @@ const MIN_CELL_WIDTH_FOR_FULL_NAMES: f32 = 100.0;
 /// Fixed height for the weekday header row
 const WEEKDAY_HEADER_HEIGHT: f32 = 32.0;
 
-/// Height of an all-day event chip in the overlay
-const ALLDAY_EVENT_HEIGHT: f32 = 19.0;
+/// Height of a date event chip in the overlay
+const DATE_EVENT_HEIGHT: f32 = 19.0;
 
-/// Spacing between all-day event chips
-const ALLDAY_EVENT_SPACING: f32 = 2.0;
+/// Spacing between date event chips
+const DATE_EVENT_SPACING: f32 = 2.0;
 
 /// Offset from top of cell to where events start (day number area)
 /// This is derived from day_cell: DAY_HEADER_HEIGHT (28) + SPACING_SMALL (4)
@@ -45,11 +45,11 @@ const DAY_CELL_HEADER_OFFSET: f32 = 32.0;
 /// Top padding of day cells
 const DAY_CELL_TOP_PADDING: f32 = 4.0;
 
-/// A segment of an all-day event to render in the overlay.
+/// A segment of a date event (no specific time) to render in the overlay.
 /// For single-day events, this represents the entire event.
 /// For multi-day events, this represents one week's portion.
 #[derive(Debug, Clone)]
-struct AllDayEventSegment {
+struct DateEventSegment {
     /// Event UID
     uid: String,
     /// Event summary/title
@@ -114,11 +114,11 @@ fn render_weekday_header(show_week_numbers: bool, use_short_names: bool) -> Elem
     header_row.into()
 }
 
-/// Compute slot assignments for ALL all-day events in a week using greedy interval scheduling.
+/// Compute slot assignments for all date events in a week using greedy interval scheduling.
 /// Returns a map of event UID -> slot index.
-/// Both single-day and multi-day events get slots assigned.
+/// Both single-day and multi-day date events get slots assigned.
 /// Events are assigned to the first available slot where they don't overlap with other events.
-fn compute_week_allday_slots(
+fn compute_week_date_event_slots(
     week: &[CalendarDay],
     events_by_date: &HashMap<NaiveDate, Vec<DisplayEvent>>,
 ) -> HashMap<String, usize> {
@@ -137,9 +137,9 @@ fn compute_week_allday_slots(
     let week_start = week_dates[0];
     let week_end = week_dates[week_dates.len() - 1];
 
-    // Collect all all-day events that appear in this week
+    // Collect all date events that appear in this week
     // Store: (start_col, end_col, uid) - column range within this week
-    let mut allday_events: Vec<(usize, usize, String)> = Vec::new();
+    let mut date_events: Vec<(usize, usize, String)> = Vec::new();
     let mut seen_uids: std::collections::HashSet<String> = std::collections::HashSet::new();
 
     for (col, date) in week_dates.iter().enumerate() {
@@ -171,13 +171,13 @@ fn compute_week_allday_slots(
                     (col, col)
                 };
 
-                allday_events.push((start_col, end_col, event.uid.clone()));
+                date_events.push((start_col, end_col, event.uid.clone()));
             }
         }
     }
 
     // Sort by start column, then by span length (longer events first for stable ordering)
-    allday_events.sort_by(|a, b| {
+    date_events.sort_by(|a, b| {
         a.0.cmp(&b.0)
             .then_with(|| (b.1 - b.0).cmp(&(a.1 - a.0))) // Longer events first
     });
@@ -186,7 +186,7 @@ fn compute_week_allday_slots(
     // Track which slots are occupied at each column: slot_occupancy[col] = set of occupied slots
     let mut slot_occupancy: Vec<std::collections::HashSet<usize>> = vec![std::collections::HashSet::new(); 7];
 
-    for (start_col, end_col, uid) in allday_events {
+    for (start_col, end_col, uid) in date_events {
         // Find the first slot that is free for all columns this event spans
         let mut slot = 0;
         loop {
@@ -214,7 +214,7 @@ fn compute_week_allday_slots(
     slots
 }
 
-/// Compute slot assignments for ALL all-day events in a week (used by day_cell for placeholders).
+/// Compute slot assignments for all date events in a week (used by day_cell for placeholders).
 /// Returns a map of event UID -> slot index.
 /// Uses the same greedy interval scheduling as the overlay renderer for consistency.
 fn compute_week_event_slots(
@@ -222,17 +222,17 @@ fn compute_week_event_slots(
     events_by_date: &HashMap<NaiveDate, Vec<DisplayEvent>>,
 ) -> HashMap<String, usize> {
     // Use the same algorithm as the overlay to ensure consistent slot assignments
-    compute_week_allday_slots(week, events_by_date)
+    compute_week_date_event_slots(week, events_by_date)
 }
 
-/// Collect all all-day event segments across all weeks for overlay rendering.
-/// Both single-day and multi-day events are handled.
+/// Collect all date event segments across all weeks for overlay rendering.
+/// Both single-day and multi-day date events are handled.
 /// Each segment represents one week's portion of an event (or the whole event for single-day).
-fn collect_allday_event_segments(
+fn collect_date_event_segments(
     weeks: &[Vec<CalendarDay>],
     events_by_date: &HashMap<NaiveDate, Vec<DisplayEvent>>,
-) -> Vec<AllDayEventSegment> {
-    let mut segments: Vec<AllDayEventSegment> = Vec::new();
+) -> Vec<DateEventSegment> {
+    let mut segments: Vec<DateEventSegment> = Vec::new();
     let mut global_seen: HashMap<String, bool> = HashMap::new(); // uid -> has_been_first
 
     for (week_idx, week) in weeks.iter().enumerate() {
@@ -249,16 +249,16 @@ fn collect_allday_event_segments(
         let week_start = week_dates[0];
         let week_end = week_dates[week_dates.len() - 1];
 
-        // Compute slots for this week (all all-day events)
-        let event_slots = compute_week_allday_slots(week, events_by_date);
+        // Compute slots for this week (all date events)
+        let event_slots = compute_week_date_event_slots(week, events_by_date);
 
-        // Find all-day events in this week
+        // Find date events in this week
         let mut week_seen: std::collections::HashSet<String> = std::collections::HashSet::new();
 
         for (col, date) in week_dates.iter().enumerate() {
             if let Some(day_events) = events_by_date.get(date) {
                 for event in day_events {
-                    // Only process all-day events we haven't seen this week
+                    // Only process date events we haven't seen this week
                     if !event.all_day || week_seen.contains(&event.uid) {
                         continue;
                     }
@@ -296,7 +296,7 @@ fn collect_allday_event_segments(
                     // Get slot for this event
                     let slot = event_slots.get(&event.uid).copied().unwrap_or(0);
 
-                    segments.push(AllDayEventSegment {
+                    segments.push(DateEventSegment {
                         uid: event.uid.clone(),
                         summary: event.summary.clone(),
                         color: event.color.clone(),
@@ -314,16 +314,16 @@ fn collect_allday_event_segments(
     segments
 }
 
-/// Render the all-day events overlay layer.
-/// This renders ALL all-day events (single-day and multi-day) as spanning elements.
+/// Render the date events overlay layer.
+/// This renders all date events (single-day and multi-day) as spanning elements.
 /// Single-day events span only their own column.
 /// Multi-day events span across multiple columns.
-fn render_allday_events_overlay<'a>(
+fn render_date_events_overlay<'a>(
     weeks: &[Vec<CalendarDay>],
     events_by_date: &HashMap<NaiveDate, Vec<DisplayEvent>>,
     show_week_numbers: bool,
 ) -> Option<Element<'a, Message>> {
-    let segments = collect_allday_event_segments(weeks, events_by_date);
+    let segments = collect_date_event_segments(weeks, events_by_date);
 
     if segments.is_empty() {
         return None;
@@ -332,7 +332,7 @@ fn render_allday_events_overlay<'a>(
     let num_weeks = weeks.len();
 
     // Group segments by week
-    let mut segments_by_week: HashMap<usize, Vec<AllDayEventSegment>> = HashMap::new();
+    let mut segments_by_week: HashMap<usize, Vec<DateEventSegment>> = HashMap::new();
     for segment in segments {
         segments_by_week
             .entry(segment.week_idx)
@@ -359,7 +359,7 @@ fn render_allday_events_overlay<'a>(
             let max_slot = segs.iter().map(|s| s.slot).max().unwrap_or(0);
 
             // Build week content: header offset + slot rows
-            let mut week_content = column().spacing(ALLDAY_EVENT_SPACING);
+            let mut week_content = column().spacing(DATE_EVENT_SPACING);
 
             // Spacer for day header area
             week_content = week_content.push(
@@ -370,12 +370,12 @@ fn render_allday_events_overlay<'a>(
             // Render each slot as a separate row
             for slot in 0..=max_slot {
                 // Find segments at this slot
-                let slot_segments: Vec<&AllDayEventSegment> = segs.iter()
+                let slot_segments: Vec<&DateEventSegment> = segs.iter()
                     .filter(|s| s.slot == slot)
                     .collect();
 
                 // Build row for this slot
-                let mut slot_row = row().spacing(SPACING_TINY).height(Length::Fixed(ALLDAY_EVENT_HEIGHT));
+                let mut slot_row = row().spacing(SPACING_TINY).height(Length::Fixed(DATE_EVENT_HEIGHT));
 
                 // Week number area spacer (if enabled)
                 // Note: This is needed because the slot row needs to align with day cells
@@ -403,7 +403,7 @@ fn render_allday_events_overlay<'a>(
 
                     // Render the spanning chip
                     let span_cols = seg.end_col - seg.start_col + 1;
-                    let chip = render_allday_chip(
+                    let chip = render_date_event_chip(
                         seg.summary.clone(),
                         seg.color.clone(),
                         seg.is_first_segment,
@@ -466,9 +466,9 @@ fn render_allday_events_overlay<'a>(
     )
 }
 
-/// Render a single all-day event chip for the overlay.
-/// Works for both single-day and multi-day events.
-fn render_allday_chip(
+/// Render a single date event chip for the overlay.
+/// Works for both single-day and multi-day date events.
+fn render_date_event_chip(
     summary: String,
     color_hex: String,
     show_text: bool,
@@ -657,14 +657,14 @@ pub fn render_month_view<'a>(
     // Collect overlays to stack
     let mut layers: Vec<Element<'a, Message>> = vec![base.into()];
 
-    // Add all-day events overlay (renders all all-day events as spanning bars)
+    // Add date events overlay (renders all date events as spanning bars)
     if let Some(ref e) = events {
-        if let Some(allday_overlay) = render_allday_events_overlay(
+        if let Some(date_events_overlay) = render_date_events_overlay(
             &calendar_state.weeks_full,
             e.events_by_date,
             show_week_numbers,
         ) {
-            layers.push(allday_overlay);
+            layers.push(date_events_overlay);
         }
     }
 
