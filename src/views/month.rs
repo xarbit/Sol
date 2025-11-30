@@ -673,8 +673,12 @@ pub fn render_month_view<'a>(
                 && day == today.day();
 
             // Check if this day is selected (works for both current and adjacent month days)
+            // Don't show cell selection if an event is selected - event selection takes priority
             let cell_date = NaiveDate::from_ymd_opt(year, month, day);
-            let is_selected = selected_date.is_some() && cell_date == selected_date;
+            let has_event_selected = events.as_ref()
+                .and_then(|e| e.selected_event_uid)
+                .is_some();
+            let is_selected = !has_event_selected && selected_date.is_some() && cell_date == selected_date;
 
             // Get weekday for weekend detection
             let weekday = chrono::NaiveDate::from_ymd_opt(year, month, day)

@@ -301,6 +301,10 @@ pub fn handle_message(app: &mut CosmicCalendar, message: Message) -> Task<Messag
             handle_open_new_event_dialog(app);
         }
         Message::OpenEditEventDialog(uid) => {
+            // Cancel any drag operation that may have started from the first click of double-click
+            app.event_drag_state.cancel();
+            // Clear selection since we're opening the edit dialog
+            app.selected_event_uid = None;
             handle_open_edit_event_dialog(app, uid);
         }
         Message::EventDialogToggleEdit(field, editing) => {
