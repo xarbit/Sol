@@ -3,65 +3,22 @@ use cosmic::iced::{alignment, Length, Size};
 use cosmic::widget::{column, container, mouse_area, responsive};
 use cosmic::{widget, Element};
 
-use crate::components::{render_split_events, render_compact_events, render_quick_event_input, DisplayEvent};
+use crate::components::{
+    render_compact_events, render_unified_events, render_quick_event_input, DisplayEvent,
+    calculate_display_mode, EventDisplayMode,
+};
 use crate::message::Message;
 use crate::styles::{
     today_circle_style, selected_day_style, day_cell_style, adjacent_month_day_style,
     adjacent_month_selected_style, selection_highlight_style, adjacent_month_selection_style
 };
-use crate::ui_constants::{PADDING_DAY_CELL, SPACING_SMALL, SPACING_TINY};
+use crate::ui_constants::{PADDING_DAY_CELL, SPACING_SMALL, DAY_HEADER_HEIGHT};
 
 /// Size of the circle behind today's day number
 const TODAY_CIRCLE_SIZE: f32 = 32.0;
 
 /// Vertical-only padding for day cells (all-day events need edge-to-edge)
 const PADDING_DAY_CELL_VERTICAL: [u16; 4] = [PADDING_DAY_CELL[0], 0, PADDING_DAY_CELL[2], 0];
-
-/// Height of a single event chip (text + padding)
-const EVENT_CHIP_HEIGHT: f32 = 19.0;
-
-/// Height of a compact event indicator (thin line without text)
-const COMPACT_EVENT_HEIGHT: f32 = 6.0;
-
-/// Minimum cell height to show full event chips (below this, use compact mode)
-const MIN_CELL_HEIGHT_FOR_FULL_EVENTS: f32 = 80.0;
-
-/// Minimum cell width to show full event chips (below this, use compact mode)
-const MIN_CELL_WIDTH_FOR_FULL_EVENTS: f32 = 80.0;
-
-/// Height reserved for day number header
-const DAY_HEADER_HEIGHT: f32 = 28.0;
-
-/// Spacing between events
-const EVENT_SPACING: f32 = SPACING_TINY as f32;
-
-/// Display mode for events based on available cell size
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum EventDisplayMode {
-    /// Full event chips with text
-    Full { max_visible: usize },
-    /// Compact color-only indicators (thin lines without text)
-    Compact { max_visible: usize },
-}
-
-/// Calculate the event display mode based on cell dimensions
-fn calculate_display_mode(cell_size: Size) -> EventDisplayMode {
-    let use_compact = cell_size.height < MIN_CELL_HEIGHT_FOR_FULL_EVENTS
-        || cell_size.width < MIN_CELL_WIDTH_FOR_FULL_EVENTS;
-
-    // Available height for events (cell height minus header and padding)
-    let available_height = (cell_size.height - DAY_HEADER_HEIGHT - (PADDING_DAY_CELL_VERTICAL[0] as f32 * 2.0)).max(0.0);
-
-    if use_compact {
-        // Compact mode: thin lines
-        let max_visible = ((available_height + EVENT_SPACING) / (COMPACT_EVENT_HEIGHT + EVENT_SPACING)).floor() as usize;
-        EventDisplayMode::Compact { max_visible: max_visible.max(1) }
-    } else {
-        // Full mode: regular event chips
-        let max_visible = ((available_height + EVENT_SPACING) / (EVENT_CHIP_HEIGHT + EVENT_SPACING)).floor() as usize;
-        EventDisplayMode::Full { max_visible: max_visible.max(1) }
-    }
-}
 
 /// Apply the appropriate style to a day cell container based on state
 /// Today no longer gets special cell styling - the circle is on the day number
@@ -98,9 +55,11 @@ pub struct DayCellConfig {
     /// Whether this day is from an adjacent month (shown grayed out)
     pub is_adjacent_month: bool,
     pub events: Vec<DisplayEvent>,
-    /// Slot assignments for multi-day events: maps event UID to slot index
-    /// Events with slots are rendered in slot order, others fill remaining space
+    /// Slot assignments for date events: maps event UID to slot index
     pub event_slots: std::collections::HashMap<String, usize>,
+    /// Maximum slot index used in this week (for consistent vertical offset)
+    /// All day cells in the same week should have the same max_slot value
+    pub week_max_slot: Option<usize>,
     /// If Some, show quick event input with (editing_text, calendar_color)
     pub quick_event: Option<(String, String)>,
     /// Whether this day is part of the current drag selection range
@@ -136,8 +95,10 @@ pub fn render_day_cell_with_events(config: DayCellConfig) -> Element<'static, Me
         };
 
         // Right-align the day number with horizontal padding
+        // Use fixed height to ensure consistent positioning that matches the overlay
         let header = container(day_number)
             .width(Length::Fill)
+            .height(Length::Fixed(DAY_HEADER_HEIGHT))
             .padding([0, PADDING_DAY_CELL[1], 0, PADDING_DAY_CELL[3]]) // horizontal padding for header
             .align_x(alignment::Horizontal::Right);
 
@@ -148,7 +109,10 @@ pub fn render_day_cell_with_events(config: DayCellConfig) -> Element<'static, Me
             .push(header);
 
         // Events section - adapts based on display mode
-        let has_events = !config.events.is_empty() || config.quick_event.is_some();
+        // Check if we have events OR if there are slots reserved for date events spanning through this day
+        let has_slot_reservations = config.week_max_slot.is_some();
+        let has_events = !config.events.is_empty() || config.quick_event.is_some() || has_slot_reservations;
+
         if has_events {
             // Show quick event input if editing on this day (only in full mode)
             if let (Some((ref text, ref color)), EventDisplayMode::Full { .. }) = (&config.quick_event, display_mode) {
@@ -158,70 +122,64 @@ pub fn render_day_cell_with_events(config: DayCellConfig) -> Element<'static, Me
             }
 
             // Show existing events based on display mode
-            if !config.events.is_empty() && date.is_some() {
+            // Use unified events renderer that puts placeholders + timed events in a single column
+            if (!config.events.is_empty() || has_slot_reservations) && date.is_some() {
                 let current_date = date.unwrap();
+                let max_visible = display_mode.max_visible();
+                let show_overflow = display_mode.show_overflow();
 
-                match display_mode {
-                    EventDisplayMode::Full { max_visible } => {
-                        // Full mode: regular event chips with text
-                        let split_events = render_split_events(
-                            config.events.clone(),
-                            max_visible,
-                            current_date,
-                            &config.event_slots
-                        );
+                if display_mode.is_compact() {
+                    // Compact mode: thin color lines without text
+                    let compact_events = render_compact_events(
+                        config.events.clone(),
+                        max_visible,
+                        current_date,
+                        &config.event_slots,
+                        config.week_max_slot,
+                    );
 
-                        // All-day events: edge-to-edge, no horizontal padding
-                        // No clip - allow text to overflow for multi-day events
-                        if let Some(all_day) = split_events.all_day {
-                            let all_day_container = container(all_day)
-                                .width(Length::Fill);
-                            content = content.push(all_day_container);
-                        }
-
-                        // Timed events: with horizontal padding for indentation
-                        if let Some(timed) = split_events.timed {
-                            let timed_container = container(timed)
-                                .width(Length::Fill)
-                                .padding([0, PADDING_DAY_CELL[1], 0, PADDING_DAY_CELL[3]])
-                                .clip(true);
-                            content = content.push(timed_container);
-                        }
-
-                        // Show "+N more" if there are hidden events
-                        if split_events.overflow_count > 0 {
-                            content = content.push(
-                                container(
-                                    widget::text(format!("+{} more", split_events.overflow_count))
-                                        .size(10)
-                                )
-                                .padding([0, PADDING_DAY_CELL[1], 0, PADDING_DAY_CELL[3]])
-                            );
-                        }
+                    if let Some(compact_element) = compact_events.element {
+                        content = content.push(compact_element);
                     }
-                    EventDisplayMode::Compact { max_visible } => {
-                        // Compact mode: thin color lines without text
-                        let compact_events = render_compact_events(
-                            config.events.clone(),
-                            max_visible,
-                            current_date,
-                            &config.event_slots
+
+                    // Show overflow count as small number if there are hidden events
+                    // (only if cell is tall enough)
+                    if show_overflow && compact_events.overflow_count > 0 {
+                        content = content.push(
+                            container(
+                                widget::text(format!("+{}", compact_events.overflow_count))
+                                    .size(8)
+                            )
+                            .padding([0, PADDING_DAY_CELL[1], 0, PADDING_DAY_CELL[3]])
                         );
+                    }
+                } else {
+                    // Full mode: unified column with placeholders followed by timed events
+                    let unified = render_unified_events(
+                        config.events.clone(),
+                        max_visible,
+                        current_date,
+                        config.week_max_slot,
+                    );
 
-                        if let Some(compact_element) = compact_events.element {
-                            content = content.push(compact_element);
-                        }
+                    // Single container for all events (placeholders + timed)
+                    // Edge-to-edge width, clip overflow
+                    if let Some(events_element) = unified.events {
+                        let events_container = container(events_element)
+                            .width(Length::Fill)
+                            .clip(true);
+                        content = content.push(events_container);
+                    }
 
-                        // Show overflow count as small number if there are hidden events
-                        if compact_events.overflow_count > 0 {
-                            content = content.push(
-                                container(
-                                    widget::text(format!("+{}", compact_events.overflow_count))
-                                        .size(8)
-                                )
-                                .padding([0, PADDING_DAY_CELL[1], 0, PADDING_DAY_CELL[3]])
-                            );
-                        }
+                    // Show "+N more" if there are hidden events (only if cell is tall enough)
+                    if show_overflow && unified.overflow_count > 0 {
+                        content = content.push(
+                            container(
+                                widget::text(format!("+{} more", unified.overflow_count))
+                                    .size(10)
+                            )
+                            .padding([0, PADDING_DAY_CELL[1], 0, PADDING_DAY_CELL[3]])
+                        );
                     }
                 }
             }
@@ -286,44 +244,3 @@ pub fn render_day_cell_with_events(config: DayCellConfig) -> Element<'static, Me
         cell_content.into()
     }
 }
-
-/// Simple day cell render for backward compatibility (mini calendar, etc.)
-pub fn render_day_cell(
-    year: i32,
-    month: u32,
-    day: u32,
-    is_today: bool,
-    is_selected: bool,
-    is_weekend: bool,
-) -> Element<'static, Message> {
-    // Day number - with circle background if today
-    let day_number: Element<'static, Message> = if is_today {
-        // Today: blue circle behind the day number
-        container(
-            widget::text(day.to_string())
-        )
-        .width(Length::Fixed(TODAY_CIRCLE_SIZE))
-        .height(Length::Fixed(TODAY_CIRCLE_SIZE))
-        .center_x(Length::Fixed(TODAY_CIRCLE_SIZE))
-        .center_y(Length::Fixed(TODAY_CIRCLE_SIZE))
-        .style(|theme: &cosmic::Theme| today_circle_style(theme, TODAY_CIRCLE_SIZE))
-        .into()
-    } else {
-        // Regular day number
-        widget::text(day.to_string()).into()
-    };
-
-    // Right-aligned content
-    let content = container(day_number)
-        .width(Length::Fill)
-        .align_x(alignment::Horizontal::Right);
-
-    // Apply consistent styling (selected gets border, no selection highlighting for simple cells)
-    let styled_container = apply_day_cell_style(content, is_selected, false, is_weekend);
-
-    // Single mouse_area wrapping the styled container
-    mouse_area(styled_container)
-        .on_press(Message::SelectDay(year, month, day))
-        .into()
-}
-
