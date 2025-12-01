@@ -266,6 +266,36 @@ impl EventHandler {
         Ok(deleted)
     }
 
+    /// Add an exception date to a recurring event.
+    ///
+    /// This is used to delete a single occurrence of a recurring event.
+    /// The exception date tells the expansion logic to skip that occurrence.
+    pub fn add_exception_date(
+        calendar_manager: &mut CalendarManager,
+        uid: &str,
+        exception_date: chrono::NaiveDate,
+    ) -> EventResult<()> {
+        info!("EventHandler: Adding exception date {} to event uid={}", exception_date, uid);
+
+        // Find the event
+        let (mut event, calendar_id) = Self::find_event(calendar_manager, uid)?;
+
+        // Add the exception date if not already present
+        if !event.exception_dates.contains(&exception_date) {
+            event.exception_dates.push(exception_date);
+            info!("EventHandler: Added exception date, total exceptions: {}", event.exception_dates.len());
+        } else {
+            debug!("EventHandler: Exception date {} already exists for event uid={}", exception_date, uid);
+            return Ok(());
+        }
+
+        // Update the event in the calendar
+        Self::update_event(calendar_manager, &calendar_id, event)?;
+
+        info!("EventHandler: Successfully added exception date {} to event uid={}", exception_date, uid);
+        Ok(())
+    }
+
     /// Find an event by UID across all calendars.
     ///
     /// Returns the event and the calendar ID it was found in.
@@ -330,6 +360,7 @@ mod tests {
             travel_time: TravelTime::None,
             repeat: RepeatFrequency::Never,
             repeat_until: None,
+            exception_dates: vec![],
             invitees: vec![],
             alert: AlertTime::None,
             alert_second: None,

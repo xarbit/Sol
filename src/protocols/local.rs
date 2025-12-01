@@ -87,6 +87,7 @@ mod tests {
             travel_time: TravelTime::None,
             repeat: RepeatFrequency::Never,
             repeat_until: None,
+            exception_dates: vec![],
             invitees: vec![],
             alert: AlertTime::None,
             alert_second: None,

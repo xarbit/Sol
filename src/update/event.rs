@@ -28,6 +28,25 @@ pub fn extract_master_uid(uid: &str) -> &str {
     uid
 }
 
+/// Extract the occurrence date from an occurrence UID
+/// Occurrence UIDs have format "master-uid_YYYYMMDD" for recurring events
+/// Returns None if the UID doesn't match the occurrence pattern
+pub fn extract_occurrence_date(uid: &str) -> Option<NaiveDate> {
+    // Check if the UID ends with _YYYYMMDD (8 digits after underscore)
+    if let Some(pos) = uid.rfind('_') {
+        let suffix = &uid[pos + 1..];
+        // Verify it's exactly 8 digits (date format)
+        if suffix.len() == 8 && suffix.chars().all(|c| c.is_ascii_digit()) {
+            // Parse YYYYMMDD
+            let year: i32 = suffix[0..4].parse().ok()?;
+            let month: u32 = suffix[4..6].parse().ok()?;
+            let day: u32 = suffix[6..8].parse().ok()?;
+            return NaiveDate::from_ymd_opt(year, month, day);
+        }
+    }
+    None
+}
+
 /// Commit the quick event being edited - create a new event in the selected calendar
 /// Uses DialogManager to get the event data from ActiveDialog::QuickEvent
 /// Supports both single-day and multi-day events (from drag selection)
@@ -104,6 +123,7 @@ pub fn handle_commit_quick_event(app: &mut CosmicCalendar) {
         travel_time: TravelTime::None,
         repeat: RepeatFrequency::Never,
         repeat_until: None,
+        exception_dates: vec![],
         invitees: vec![],
         alert: AlertTime::None,
         alert_second: None,
@@ -477,6 +497,7 @@ pub fn handle_confirm_event_dialog(app: &mut CosmicCalendar) {
         travel_time: dialog.travel_time,
         repeat: dialog.repeat,
         repeat_until: None, // TODO: Add to dialog state
+        exception_dates: vec![], // Exception dates are preserved when editing existing events
         invitees: dialog.invitees,
         alert: dialog.alert,
         alert_second: dialog.alert_second,

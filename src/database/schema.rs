@@ -7,7 +7,7 @@ use std::path::PathBuf;
 use crate::caldav::CalendarEvent;
 
 /// Current database schema version for migrations
-const SCHEMA_VERSION: i32 = 3;
+const SCHEMA_VERSION: i32 = 4;
 
 /// Database connection wrapper with encryption support
 pub struct Database {
@@ -150,6 +150,7 @@ impl Database {
                 travel_time TEXT NOT NULL DEFAULT 'None',
                 repeat TEXT NOT NULL DEFAULT 'Never',
                 repeat_until TEXT,
+                exception_dates TEXT NOT NULL DEFAULT '[]',
                 invitees TEXT NOT NULL DEFAULT '[]',
                 alert TEXT NOT NULL DEFAULT 'None',
                 alert_second TEXT,
@@ -226,6 +227,17 @@ impl Database {
             )?;
         }
 
+        if from_version < 4 {
+            // Migrate from v3 to v4: Add exception_dates for single occurrence deletion
+            self.conn.execute_batch(
+                r#"
+                -- Add exception_dates column for deleted single occurrences of recurring events
+                -- Stored as JSON array of date strings: ["2025-01-01", "2025-01-08"]
+                ALTER TABLE events ADD COLUMN exception_dates TEXT NOT NULL DEFAULT '[]';
+                "#,
+            )?;
+        }
+
         self.set_schema_version(SCHEMA_VERSION)?;
         Ok(())
     }
@@ -242,12 +254,17 @@ impl Database {
         let alert_second = event.alert_second.as_ref().map(|a| serde_json::to_string(a)).transpose()?;
         let attachments = serde_json::to_string(&event.attachments)?;
         let repeat_until = event.repeat_until.map(|d| d.format("%Y-%m-%d").to_string());
+        // Convert exception_dates to JSON array of date strings
+        let exception_dates: Vec<String> = event.exception_dates.iter()
+            .map(|d| d.format("%Y-%m-%d").to_string())
+            .collect();
+        let exception_dates_json = serde_json::to_string(&exception_dates)?;
 
         self.conn.execute(
             r#"
             INSERT INTO events (uid, calendar_id, summary, location, all_day, start_time, end_time,
-                               travel_time, repeat, repeat_until, invitees, alert, alert_second, attachments, url, notes)
-            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)
+                               travel_time, repeat, repeat_until, exception_dates, invitees, alert, alert_second, attachments, url, notes)
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17)
             "#,
             params![
                 event.uid,
@@ -260,6 +277,7 @@ impl Database {
                 travel_time,
                 repeat,
                 repeat_until,
+                exception_dates_json,
                 invitees,
                 alert,
                 alert_second,
@@ -281,6 +299,11 @@ impl Database {
         let alert_second = event.alert_second.as_ref().map(|a| serde_json::to_string(a)).transpose()?;
         let attachments = serde_json::to_string(&event.attachments)?;
         let repeat_until = event.repeat_until.map(|d| d.format("%Y-%m-%d").to_string());
+        // Convert exception_dates to JSON array of date strings
+        let exception_dates: Vec<String> = event.exception_dates.iter()
+            .map(|d| d.format("%Y-%m-%d").to_string())
+            .collect();
+        let exception_dates_json = serde_json::to_string(&exception_dates)?;
 
         self.conn.execute(
             r#"
@@ -293,12 +316,13 @@ impl Database {
                 travel_time = ?7,
                 repeat = ?8,
                 repeat_until = ?9,
-                invitees = ?10,
-                alert = ?11,
-                alert_second = ?12,
-                attachments = ?13,
-                url = ?14,
-                notes = ?15,
+                exception_dates = ?10,
+                invitees = ?11,
+                alert = ?12,
+                alert_second = ?13,
+                attachments = ?14,
+                url = ?15,
+                notes = ?16,
                 updated_at = datetime('now')
             WHERE uid = ?1
             "#,
@@ -312,6 +336,7 @@ impl Database {
                 travel_time,
                 repeat,
                 repeat_until,
+                exception_dates_json,
                 invitees,
                 alert,
                 alert_second,
@@ -333,7 +358,7 @@ impl Database {
     pub fn get_events_for_calendar(&self, calendar_id: &str) -> Result<Vec<CalendarEvent>, Box<dyn Error>> {
         let mut stmt = self.conn.prepare(
             r#"SELECT uid, summary, location, all_day, start_time, end_time,
-                      travel_time, repeat, repeat_until, invitees, alert, alert_second,
+                      travel_time, repeat, repeat_until, exception_dates, invitees, alert, alert_second,
                       attachments, url, notes
                FROM events WHERE calendar_id = ?1"#
         )?;
@@ -344,10 +369,17 @@ impl Database {
             let travel_time_str: String = row.get(6)?;
             let repeat_str: String = row.get(7)?;
             let repeat_until_str: Option<String> = row.get(8)?;
-            let invitees_str: String = row.get(9)?;
-            let alert_str: String = row.get(10)?;
-            let alert_second_str: Option<String> = row.get(11)?;
-            let attachments_str: String = row.get(12)?;
+            let exception_dates_str: String = row.get::<_, Option<String>>(9)?.unwrap_or_else(|| "[]".to_string());
+            let invitees_str: String = row.get(10)?;
+            let alert_str: String = row.get(11)?;
+            let alert_second_str: Option<String> = row.get(12)?;
+            let attachments_str: String = row.get(13)?;
+
+            // Parse exception_dates from JSON array of date strings
+            let exception_dates_strings: Vec<String> = serde_json::from_str(&exception_dates_str).unwrap_or_default();
+            let exception_dates: Vec<chrono::NaiveDate> = exception_dates_strings.iter()
+                .filter_map(|s| chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d").ok())
+                .collect();
 
             Ok(CalendarEvent {
                 uid: row.get(0)?,
@@ -363,12 +395,13 @@ impl Database {
                 travel_time: serde_json::from_str(&travel_time_str).unwrap_or_default(),
                 repeat: serde_json::from_str(&repeat_str).unwrap_or_default(),
                 repeat_until: repeat_until_str.and_then(|s| chrono::NaiveDate::parse_from_str(&s, "%Y-%m-%d").ok()),
+                exception_dates,
                 invitees: serde_json::from_str(&invitees_str).unwrap_or_default(),
                 alert: serde_json::from_str(&alert_str).unwrap_or_default(),
                 alert_second: alert_second_str.and_then(|s| serde_json::from_str(&s).ok()),
                 attachments: serde_json::from_str(&attachments_str).unwrap_or_default(),
-                url: row.get(13)?,
-                notes: row.get(14)?,
+                url: row.get(14)?,
+                notes: row.get(15)?,
             })
         })?
         .collect::<SqlResult<Vec<_>>>()?;
@@ -437,6 +470,7 @@ mod tests {
             travel_time: TravelTime::None,
             repeat: RepeatFrequency::Never,
             repeat_until: None,
+            exception_dates: vec![],
             invitees: vec![],
             alert: AlertTime::FifteenMinutes,
             alert_second: None,

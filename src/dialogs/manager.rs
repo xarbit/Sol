@@ -84,14 +84,15 @@ pub enum ActiveDialog {
     },
     /// Delete event confirmation dialog
     EventDelete {
-        /// Event UID to delete
+        /// Event UID to delete (may be occurrence UID like "master-uid_YYYYMMDD")
         event_uid: String,
         /// Event name for display in confirmation
         event_name: String,
         /// Whether this is a recurring event
         is_recurring: bool,
-        /// For recurring events: delete all occurrences (true) or just this one (false)
-        delete_all_occurrences: bool,
+        /// The date of the occurrence being deleted (for adding to exception_dates)
+        /// This is extracted from occurrence UIDs (format: master-uid_YYYYMMDD)
+        occurrence_date: Option<chrono::NaiveDate>,
     },
     /// Event dialog is open (state managed by legacy field)
     /// This variant exists to track that an event dialog is open,
@@ -144,11 +145,11 @@ impl ActiveDialog {
     }
 
     /// Get event delete data if this is an event delete dialog
-    /// Returns (event_uid, event_name, is_recurring, delete_all_occurrences)
-    pub fn event_delete_data(&self) -> Option<(&str, &str, bool, bool)> {
+    /// Returns (event_uid, event_name, is_recurring, occurrence_date)
+    pub fn event_delete_data(&self) -> Option<(&str, &str, bool, Option<chrono::NaiveDate>)> {
         match self {
-            ActiveDialog::EventDelete { event_uid, event_name, is_recurring, delete_all_occurrences } => {
-                Some((event_uid, event_name, *is_recurring, *delete_all_occurrences))
+            ActiveDialog::EventDelete { event_uid, event_name, is_recurring, occurrence_date } => {
+                Some((event_uid, event_name, *is_recurring, *occurrence_date))
             }
             _ => None,
         }

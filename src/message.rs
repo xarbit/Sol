@@ -115,8 +115,10 @@ pub enum Message {
     DeleteEvent(String),
     /// Request to delete the currently selected event (opens confirmation dialog)
     RequestDeleteSelectedEvent,
-    /// Confirm event deletion from the confirmation dialog
+    /// Confirm event deletion from the confirmation dialog (deletes all occurrences for recurring)
     ConfirmDeleteEvent,
+    /// Delete only the selected occurrence of a recurring event
+    DeleteSingleOccurrence,
     /// Cancel event deletion
     CancelDeleteEvent,
     /// Select an event (single click) for viewing/editing

@@ -162,7 +162,9 @@ dialog-delete-calendar-message = Are you sure you want to delete "{$name}"? This
 # Dialog - Delete Event
 dialog-delete-event-title = Delete Event
 dialog-delete-event-message = Are you sure you want to delete "{$name}"?
-dialog-delete-event-recurring-message = Are you sure you want to delete "{$name}"? This is a recurring event.
+dialog-delete-event-recurring-message = This is a recurring event. What would you like to delete?
+button-delete-this-occurrence = This One
+button-delete-all-occurrences = All
 
 # Search
 search-placeholder = Search events...

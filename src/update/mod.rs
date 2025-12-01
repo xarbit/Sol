@@ -28,7 +28,7 @@ mod selection;
 use chrono::{NaiveDate, Timelike};
 use cosmic::app::Task;
 use cosmic::iced::widget::scrollable;
-use log::{debug, info};
+use log::{debug, error, info};
 
 use crate::app::CosmicCalendar;
 use crate::components::quick_event_input_id;
@@ -126,7 +126,7 @@ use calendar::{
     handle_open_calendar_dialog_edit, handle_request_delete_calendar, handle_toggle_calendar,
 };
 use event::{
-    extract_master_uid, handle_cancel_event_dialog, handle_cancel_quick_event,
+    extract_master_uid, extract_occurrence_date, handle_cancel_event_dialog, handle_cancel_quick_event,
     handle_commit_quick_event, handle_confirm_event_dialog, handle_delete_event,
     handle_drag_event_cancel, handle_drag_event_end, handle_drag_event_start,
     handle_drag_event_update, handle_open_edit_event_dialog, handle_open_new_event_dialog,
@@ -457,6 +457,8 @@ pub fn handle_message(app: &mut CosmicCalendar, message: Message) -> Task<Messag
             if let Some(uid) = app.selected_event_uid.clone() {
                 // Extract master UID for recurring events (occurrence UIDs have format master-uid_YYYYMMDD)
                 let master_uid = extract_master_uid(&uid);
+                // Extract the occurrence date from the UID (if it's an occurrence)
+                let occurrence_date = extract_occurrence_date(&uid);
                 // Find the event to get its name and check if it's recurring
                 if let Ok((event, _calendar_id)) = crate::services::EventHandler::find_event(&app.calendar_manager, master_uid) {
                     let is_recurring = !matches!(event.repeat, crate::caldav::RepeatFrequency::Never);
@@ -466,7 +468,7 @@ pub fn handle_message(app: &mut CosmicCalendar, message: Message) -> Task<Messag
                             event_uid: uid,
                             event_name: event.summary,
                             is_recurring,
-                            delete_all_occurrences: true, // Default to delete all
+                            occurrence_date,
                         },
                     );
                 } else {
@@ -477,15 +479,54 @@ pub fn handle_message(app: &mut CosmicCalendar, message: Message) -> Task<Messag
             }
         }
         Message::ConfirmDeleteEvent => {
-            // Confirm event deletion from the dialog
-            if let Some((event_uid, _event_name, _is_recurring, _delete_all)) = app.active_dialog.event_delete_data() {
+            // Confirm event deletion from the dialog (deletes all occurrences for recurring events)
+            if let Some((event_uid, _event_name, _is_recurring, _occurrence_date)) = app.active_dialog.event_delete_data() {
                 let uid = event_uid.to_string();
+                // For recurring events, we need to delete the master event
+                let master_uid = extract_master_uid(&uid).to_string();
                 // Close dialog first
                 DialogManager::close(&mut app.active_dialog);
                 // Clear selection
                 app.selected_event_uid = None;
-                // Delete the event
-                handle_delete_event(app, uid);
+                // Delete the master event (all occurrences)
+                handle_delete_event(app, master_uid);
+            }
+        }
+        Message::DeleteSingleOccurrence => {
+            // Delete only the selected occurrence of a recurring event by adding an exception date
+            if let Some((event_uid, _event_name, is_recurring, occurrence_date)) = app.active_dialog.event_delete_data() {
+                if !is_recurring {
+                    debug!("DeleteSingleOccurrence: Event is not recurring, ignoring");
+                    DialogManager::close(&mut app.active_dialog);
+                    return Task::none();
+                }
+
+                let Some(date) = occurrence_date else {
+                    debug!("DeleteSingleOccurrence: No occurrence date available");
+                    DialogManager::close(&mut app.active_dialog);
+                    return Task::none();
+                };
+
+                // Extract the master UID from the occurrence UID
+                let master_uid = extract_master_uid(event_uid).to_string();
+
+                // Close dialog first
+                DialogManager::close(&mut app.active_dialog);
+                // Clear selection
+                app.selected_event_uid = None;
+
+                // Add the exception date to the master event
+                if let Err(e) = crate::services::EventHandler::add_exception_date(
+                    &mut app.calendar_manager,
+                    &master_uid,
+                    date,
+                ) {
+                    error!("DeleteSingleOccurrence: Failed to add exception date: {}", e);
+                } else {
+                    info!("DeleteSingleOccurrence: Successfully added exception date {} to event {}", date, master_uid);
+                    // Refresh calendar cache to reflect the change
+                    app.refresh_cached_events();
+                }
             }
         }
         Message::CancelDeleteEvent => {

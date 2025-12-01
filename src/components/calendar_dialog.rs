@@ -117,6 +117,7 @@ pub fn render_delete_calendar_dialog(active_dialog: &ActiveDialog) -> Element<'_
     // Use COSMIC's dialog widget with proper styling
     dialog()
         .title(fl!("dialog-delete-calendar-title"))
+        .icon(widget::icon::from_name("dialog-warning-symbolic").size(64))
         .body(fl!(
             "dialog-delete-calendar-message",
             name = calendar_name.to_string()
@@ -140,23 +141,59 @@ pub fn render_delete_event_dialog(active_dialog: &ActiveDialog) -> Element<'_, M
         _ => return widget::text("").into(), // Should not happen
     };
 
-    // Build dialog body message
-    let body_message = if is_recurring {
-        fl!("dialog-delete-event-recurring-message", name = event_name.to_string())
-    } else {
-        fl!("dialog-delete-event-message", name = event_name.to_string())
-    };
+    if is_recurring {
+        // For recurring events, show three buttons: Cancel, Delete This One, Delete All
+        // The body explains this is a recurring event
+        let body_message = fl!("dialog-delete-event-recurring-message");
 
-    // Use COSMIC's dialog widget with proper styling
-    dialog()
-        .title(fl!("dialog-delete-event-title"))
-        .body(body_message)
-        .secondary_action(
-            button::text(fl!("button-cancel")).on_press(Message::CancelDeleteEvent),
-        )
-        .primary_action(
-            button::destructive(fl!("button-delete")).on_press(Message::ConfirmDeleteEvent),
-        )
-        .width(Length::Fixed(400.0))
-        .into()
+        // Create a custom button row with three buttons - wrap to allow buttons to adapt
+        let button_row = row()
+            .spacing(8)
+            .push(
+                button::text(fl!("button-cancel"))
+                    .on_press(Message::CancelDeleteEvent)
+                    .width(Length::Shrink),
+            )
+            .push(
+                button::standard(fl!("button-delete-this-occurrence"))
+                    .on_press(Message::DeleteSingleOccurrence)
+                    .width(Length::Shrink),
+            )
+            .push(
+                button::destructive(fl!("button-delete-all-occurrences"))
+                    .on_press(Message::ConfirmDeleteEvent)
+                    .width(Length::Shrink),
+            );
+
+        // Build dialog content with event name as title context
+        let content = column()
+            .spacing(16)
+            .push(widget::text::title4(event_name))
+            .push(widget::text(body_message))
+            .push(button_row);
+
+        // Use a simple dialog without the standard primary/secondary buttons
+        dialog()
+            .title(fl!("dialog-delete-event-title"))
+            .icon(widget::icon::from_name("dialog-warning-symbolic").size(64))
+            .control(content)
+            .width(Length::Fixed(400.0))
+            .into()
+    } else {
+        // For non-recurring events, show simple confirmation with Cancel and Delete
+        let body_message = fl!("dialog-delete-event-message", name = event_name.to_string());
+
+        dialog()
+            .title(fl!("dialog-delete-event-title"))
+            .icon(widget::icon::from_name("dialog-warning-symbolic").size(64))
+            .body(body_message)
+            .secondary_action(
+                button::text(fl!("button-cancel")).on_press(Message::CancelDeleteEvent),
+            )
+            .primary_action(
+                button::destructive(fl!("button-delete")).on_press(Message::ConfirmDeleteEvent),
+            )
+            .width(Length::Fixed(400.0))
+            .into()
+    }
 }

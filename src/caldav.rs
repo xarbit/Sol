@@ -75,6 +75,9 @@ pub struct CalendarEvent {
     pub repeat: RepeatFrequency,
     /// End date for recurring events (None means no end date)
     pub repeat_until: Option<chrono::NaiveDate>,
+    /// Exception dates - dates where this recurring event should NOT appear
+    /// Used when deleting a single occurrence of a recurring event
+    pub exception_dates: Vec<chrono::NaiveDate>,
     /// Invitees (email addresses)
     pub invitees: Vec<String>,
     /// Alert/reminder settings
@@ -245,6 +248,7 @@ mod tests {
             travel_time: TravelTime::None,
             repeat: RepeatFrequency::Never,
             repeat_until: None,
+            exception_dates: vec![],
             invitees: vec![],
             alert: AlertTime::FifteenMinutes,
             alert_second: None,

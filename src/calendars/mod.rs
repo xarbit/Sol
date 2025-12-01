@@ -187,6 +187,7 @@ impl CalendarManager {
 
     /// Expand a recurring event into multiple occurrences within a date range
     /// Returns a vector of (occurrence_date, event) tuples
+    /// Skips exception dates (dates where the recurring event was deleted for a single occurrence)
     fn expand_recurring_event(
         event: &CalendarEvent,
         range_start: NaiveDate,
@@ -224,8 +225,8 @@ impl CalendarManager {
         while current_date <= recurrence_end && current_date <= range_end && iteration_count < max_iterations {
             iteration_count += 1;
 
-            // Only add if within the visible range
-            if current_date >= range_start {
+            // Only add if within the visible range AND not an exception date
+            if current_date >= range_start && !event.exception_dates.contains(&current_date) {
                 // Create a clone of the event with adjusted dates
                 let duration = event.end - event.start;
                 let mut occurrence = event.clone();
