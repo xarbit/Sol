@@ -25,6 +25,9 @@ pub enum MenuAction {
     ScrollTimelineDown,
     // Event actions
     DeleteSelectedEvent,
+    // View cycling (V + Arrow keys)
+    CycleViewNext,
+    CycleViewPrevious,
 }
 
 impl menu::action::MenuAction for MenuAction {
@@ -49,6 +52,8 @@ impl menu::action::MenuAction for MenuAction {
             MenuAction::ScrollTimelineUp => Message::ScrollTimelineUp,
             MenuAction::ScrollTimelineDown => Message::ScrollTimelineDown,
             MenuAction::DeleteSelectedEvent => Message::RequestDeleteSelectedEvent,
+            MenuAction::CycleViewNext => Message::CycleViewNext,
+            MenuAction::CycleViewPrevious => Message::CycleViewPrevious,
         }
     }
 }

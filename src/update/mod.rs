@@ -182,6 +182,26 @@ pub fn handle_message(app: &mut CosmicCalendar, message: Message) -> Task<Messag
                 return scroll_week_to_current_time();
             }
         }
+        Message::CycleViewNext => {
+            dismiss_on_focus_loss(app);
+            let new_view = app.current_view.next();
+            app.current_view = new_view;
+            app.sync_views_to_selected_date();
+            // Auto-scroll to current time when entering week view
+            if new_view == CalendarView::Week {
+                return scroll_week_to_current_time();
+            }
+        }
+        Message::CycleViewPrevious => {
+            dismiss_on_focus_loss(app);
+            let new_view = app.current_view.previous();
+            app.current_view = new_view;
+            app.sync_views_to_selected_date();
+            // Auto-scroll to current time when entering week view
+            if new_view == CalendarView::Week {
+                return scroll_week_to_current_time();
+            }
+        }
         Message::PreviousPeriod => {
             dismiss_on_focus_loss(app);
             handle_previous_period(app);

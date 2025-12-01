@@ -112,6 +112,24 @@ pub fn init_key_binds() -> HashMap<menu::KeyBind, MenuAction> {
         MenuAction::DeleteSelectedEvent,
     );
 
+    // Cycle View Next: Ctrl+Shift+] (Year → Month → Week → Day)
+    key_binds.insert(
+        menu::KeyBind {
+            modifiers: vec![menu::key_bind::Modifier::Ctrl, menu::key_bind::Modifier::Shift],
+            key: Key::Character("]".into()),
+        },
+        MenuAction::CycleViewNext,
+    );
+
+    // Cycle View Previous: Ctrl+Shift+[ (Day → Week → Month → Year)
+    key_binds.insert(
+        menu::KeyBind {
+            modifiers: vec![menu::key_bind::Modifier::Ctrl, menu::key_bind::Modifier::Shift],
+            key: Key::Character("[".into()),
+        },
+        MenuAction::CycleViewPrevious,
+    );
+
     // Store globally for subscription access
     let _ = KEY_BINDS.set(key_binds.clone());
 

@@ -19,3 +19,25 @@ pub enum CalendarView {
     Week,
     Day,
 }
+
+impl CalendarView {
+    /// Get the next view in the cycle: Year → Month → Week → Day → Year
+    pub fn next(self) -> Self {
+        match self {
+            CalendarView::Year => CalendarView::Month,
+            CalendarView::Month => CalendarView::Week,
+            CalendarView::Week => CalendarView::Day,
+            CalendarView::Day => CalendarView::Year,
+        }
+    }
+
+    /// Get the previous view in the cycle: Day → Week → Month → Year → Day
+    pub fn previous(self) -> Self {
+        match self {
+            CalendarView::Year => CalendarView::Day,
+            CalendarView::Month => CalendarView::Year,
+            CalendarView::Week => CalendarView::Month,
+            CalendarView::Day => CalendarView::Week,
+        }
+    }
+}

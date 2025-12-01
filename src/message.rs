@@ -17,6 +17,10 @@ pub enum Message {
 
     // View navigation
     ChangeView(CalendarView),
+    /// Cycle to the next view (Year → Month → Week → Day)
+    CycleViewNext,
+    /// Cycle to the previous view (Day → Week → Month → Year)
+    CycleViewPrevious,
     PreviousPeriod,
     NextPeriod,
     Today,
