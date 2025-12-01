@@ -4,13 +4,13 @@
   # A Calendar made for the COSMIC Desktop
 </div>
 
-![Month View](images/image1.png)
+![Month View](res/screenshots/default.png)
 
-![Week view](images/week.png)
+![Week view](res/screenshots/weekview.png)
 
-![Day view](images/day.png)
+![Day view](res/screenshots/day.png)
 
-![Year view](images/year.png)
+![Year view](res/screenshots/year.png)
 
 > ⚠️ **WORK IN PROGRESS** - This project is in early development and is **not ready for production use**. Many features are incomplete or missing. Use at your own risk!
 
