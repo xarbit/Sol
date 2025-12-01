@@ -181,3 +181,4 @@ about-version = Version
 about-repository = Repository
 about-license = License
 about-author = Author
+about-support = Support

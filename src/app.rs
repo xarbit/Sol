@@ -13,6 +13,7 @@ use crate::views::{self, CalendarView};
 use chrono::{Datelike, NaiveDate};
 use cosmic::app::Core;
 use cosmic::iced::keyboard;
+use cosmic::widget::icon;
 use cosmic::widget::calendar::CalendarModel;
 use cosmic::widget::{about, menu, text_editor};
 use cosmic::widget::menu::Action as _; // Import trait for .message() method
@@ -169,9 +170,14 @@ impl CosmicCalendar {
         // Create About dialog
         let about = about::About::default()
             .name(fl!("app-title"))
+            .icon(icon::from_name(Self::APP_ID))
             .version(env!("CARGO_PKG_VERSION"))
-            .license(fl!("about-license"))
-            .links([(fl!("about-repository"), "https://github.com/xarbit/sol")]);
+            .author("xarbit")
+            .license("GPL-3.0-only")
+                        .license_url("https://spdx.org/licenses/GPL-3.0-only")
+                        .developers([("Jason Scurtu", "jscurtu@gmail.com")])
+            .links([(fl!("about-repository"), "https://github.com/xarbit/sol"),
+                (fl!("about-support"), "https://github.com/xarbit/sol/issues")]);
 
         // Detect system locale preferences
         let locale = LocalePreferences::detect_from_system();
