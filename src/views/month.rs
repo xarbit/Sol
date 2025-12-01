@@ -7,8 +7,9 @@ use cosmic::iced::{alignment, Length, Size};
 use cosmic::widget::{column, container, mouse_area, row, responsive};
 use cosmic::{widget, Element};
 
-use crate::components::color_picker::parse_hex_color;
-use crate::components::{render_day_cell_with_events, render_spanning_quick_event_input, DayCellConfig, DisplayEvent};
+use crate::components::color_picker::parse_color_safe;
+use crate::components::spacer::{spacer, vertical_spacer, horizontal_spacer, fill_spacer};
+use crate::components::{render_day_cell_with_events, render_spanning_quick_event_input, DayCellConfig, DisplayEvent, span_border_radius_from_flags, ChipOpacity};
 use crate::dialogs::ActiveDialog;
 use crate::models::CalendarDay;
 use crate::fl;
@@ -20,7 +21,7 @@ use crate::selection::SelectionState;
 use crate::components::should_use_compact;
 use crate::ui_constants::{
     FONT_SIZE_MEDIUM, FONT_SIZE_SMALL, PADDING_SMALL, PADDING_MONTH_GRID,
-    SPACING_TINY, WEEK_NUMBER_WIDTH, COLOR_DEFAULT_GRAY,
+    SPACING_TINY, WEEK_NUMBER_WIDTH,
     DATE_EVENT_HEIGHT, COMPACT_EVENT_HEIGHT, DATE_EVENT_SPACING,
     DAY_CELL_HEADER_OFFSET, DAY_CELL_TOP_PADDING, BORDER_WIDTH_HIGHLIGHT,
 };
@@ -372,10 +373,7 @@ fn render_date_events_overlay<'a>(
         .padding(PADDING_MONTH_GRID);
 
     // Header spacer
-    overlay_column = overlay_column.push(
-        container(widget::text(""))
-            .height(Length::Fixed(WEEKDAY_HEADER_HEIGHT))
-    );
+    overlay_column = overlay_column.push(vertical_spacer(WEEKDAY_HEADER_HEIGHT));
 
     for week_idx in 0..num_weeks {
         let week_segments = segments_by_week.get(&week_idx);
@@ -388,10 +386,7 @@ fn render_date_events_overlay<'a>(
             let mut week_content = column().spacing(DATE_EVENT_SPACING);
 
             // Spacer for day header area
-            week_content = week_content.push(
-                container(widget::text(""))
-                    .height(Length::Fixed(DAY_CELL_HEADER_OFFSET + DAY_CELL_TOP_PADDING))
-            );
+            week_content = week_content.push(vertical_spacer(DAY_CELL_HEADER_OFFSET + DAY_CELL_TOP_PADDING));
 
             // Render each slot as a separate row
             for slot in 0..=max_slot {
@@ -414,10 +409,7 @@ fn render_date_events_overlay<'a>(
                     if seg.start_col > current_col {
                         let gap = seg.start_col - current_col;
                         for _ in 0..gap {
-                            slot_row = slot_row.push(
-                                container(widget::text(""))
-                                    .width(Length::Fill)
-                            );
+                            slot_row = slot_row.push(spacer(Length::Fill, Length::Shrink));
                         }
                     }
 
@@ -457,10 +449,7 @@ fn render_date_events_overlay<'a>(
                 // Add spacers for empty columns after the last segment
                 if current_col < 7 {
                     for _ in current_col..7 {
-                        slot_row = slot_row.push(
-                            container(widget::text(""))
-                                .width(Length::Fill)
-                        );
+                        slot_row = slot_row.push(spacer(Length::Fill, Length::Shrink));
                     }
                 }
 
@@ -471,10 +460,7 @@ fn render_date_events_overlay<'a>(
             let mut week_row = row().spacing(SPACING_TINY).height(Length::Fill);
 
             if show_week_numbers {
-                week_row = week_row.push(
-                    container(widget::text(""))
-                        .width(Length::Fixed(WEEK_NUMBER_WIDTH))
-                );
+                week_row = week_row.push(horizontal_spacer(WEEK_NUMBER_WIDTH));
             }
 
             // The week content takes up the rest of the space
@@ -486,10 +472,7 @@ fn render_date_events_overlay<'a>(
             overlay_column = overlay_column.push(week_row);
         } else {
             // Empty week row
-            overlay_column = overlay_column.push(
-                container(widget::text(""))
-                    .height(Length::Fill)
-            );
+            overlay_column = overlay_column.push(fill_spacer());
         }
     }
 
@@ -508,16 +491,10 @@ fn render_compact_date_event_chip(
     is_event_start: bool,
     is_event_end: bool,
 ) -> Element<'static, Message> {
-    let color = parse_hex_color(&color_hex).unwrap_or(COLOR_DEFAULT_GRAY);
+    let color = parse_color_safe(&color_hex);
 
     // Smaller radius for compact mode
-    let radius = 2.0;
-    let border_radius: [f32; 4] = match (is_event_start, is_event_end) {
-        (true, true) => [radius, radius, radius, radius],
-        (true, false) => [radius, 0.0, 0.0, radius],
-        (false, true) => [0.0, radius, radius, 0.0],
-        (false, false) => [0.0, 0.0, 0.0, 0.0],
-    };
+    let border_radius = span_border_radius_from_flags(is_event_start, is_event_end, 2.0);
 
     container(widget::text(""))
         .width(Length::Fill)
@@ -551,18 +528,10 @@ fn render_date_event_chip(
     is_drag_active: bool,
     is_being_dragged: bool,
 ) -> Element<'static, Message> {
-    let color = parse_hex_color(&color_hex).unwrap_or(COLOR_DEFAULT_GRAY);
+    let color = parse_color_safe(&color_hex);
 
     // Border radius based on whether this is start/end of event
-    // Single-day events have both start and end = true (fully rounded)
-    // Multi-day events have appropriate rounding based on position
-    let radius = 4.0;
-    let border_radius: [f32; 4] = match (is_event_start, is_event_end) {
-        (true, true) => [radius, radius, radius, radius],   // Single-day or start+end in same week
-        (true, false) => [radius, 0.0, 0.0, radius],        // Starts here, continues right
-        (false, true) => [0.0, radius, radius, 0.0],        // Continues from left, ends here
-        (false, false) => [0.0, 0.0, 0.0, 0.0],             // Continues through
-    };
+    let border_radius = span_border_radius_from_flags(is_event_start, is_event_end, 4.0);
 
     // Clone summary for the drag preview message (needed because text widget moves it)
     let drag_summary = summary.clone();
@@ -579,8 +548,7 @@ fn render_date_event_chip(
     };
 
     // Dim opacity when being dragged to show it's in motion
-    let base_opacity = if is_being_dragged { 0.15 } else if is_selected { 0.5 } else { 0.3 };
-    let text_opacity = if is_being_dragged { 0.4 } else { 1.0 };
+    let opacity = ChipOpacity::from_state(is_selected, is_being_dragged);
 
     let chip = container(content)
         .padding([2, 4, 2, 4])
@@ -589,14 +557,14 @@ fn render_date_event_chip(
         .style(move |_theme: &cosmic::Theme| {
             container::Style {
                 background: Some(cosmic::iced::Background::Color(
-                    color.scale_alpha(base_opacity)
+                    color.scale_alpha(opacity.background)
                 )),
                 border: cosmic::iced::Border {
                     color: if is_selected { color } else { cosmic::iced::Color::TRANSPARENT },
                     width: if is_selected { BORDER_WIDTH_HIGHLIGHT } else { 0.0 },
                     radius: border_radius.into(),
                 },
-                text_color: Some(color.scale_alpha(text_opacity)),
+                text_color: Some(color.scale_alpha(opacity.text)),
                 ..Default::default()
             }
         });
@@ -836,10 +804,7 @@ pub fn render_month_view<'a>(
                 overlay
             } else {
                 // Return empty container if no events
-                container(widget::text(""))
-                    .width(Length::Fill)
-                    .height(Length::Fill)
-                    .into()
+                fill_spacer()
             }
         });
 
@@ -919,10 +884,7 @@ fn render_spanning_overlay<'a>(
         .padding(PADDING_MONTH_GRID);
 
     // Add header spacer (same height as weekday header)
-    overlay_column = overlay_column.push(
-        container(widget::text(""))
-            .height(Length::Fixed(WEEKDAY_HEADER_HEIGHT))
-    );
+    overlay_column = overlay_column.push(vertical_spacer(WEEKDAY_HEADER_HEIGHT));
 
     let num_weeks = weeks.len();
 
@@ -936,18 +898,12 @@ fn render_spanning_overlay<'a>(
 
             // Week number spacer (if enabled)
             if show_week_numbers {
-                week_row = week_row.push(
-                    container(widget::text(""))
-                        .width(Length::Fixed(WEEK_NUMBER_WIDTH))
-                );
+                week_row = week_row.push(horizontal_spacer(WEEK_NUMBER_WIDTH));
             }
 
             // Add empty spacers for columns before the selection
             for _ in 0..*start_col {
-                week_row = week_row.push(
-                    container(widget::text(""))
-                        .width(Length::Fill)
-                );
+                week_row = week_row.push(spacer(Length::Fill, Length::Shrink));
             }
 
             // Calculate span (number of columns the input covers)
@@ -971,19 +927,13 @@ fn render_spanning_overlay<'a>(
 
             // Add empty spacers for columns after the selection
             for _ in (*end_col + 1)..7 {
-                week_row = week_row.push(
-                    container(widget::text(""))
-                        .width(Length::Fill)
-                );
+                week_row = week_row.push(spacer(Length::Fill, Length::Shrink));
             }
 
             overlay_column = overlay_column.push(week_row);
         } else {
             // Empty row - just a spacer with the same height
-            overlay_column = overlay_column.push(
-                container(widget::text(""))
-                    .height(Length::Fill)
-            );
+            overlay_column = overlay_column.push(fill_spacer());
         }
     }
 

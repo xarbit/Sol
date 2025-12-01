@@ -6,7 +6,8 @@ use cosmic::widget::{column, container, mouse_area, row, scrollable};
 use cosmic::{widget, Element};
 use std::collections::HashMap;
 
-use crate::components::{DisplayEvent, parse_hex_color, quick_event_input_id};
+use crate::components::{DisplayEvent, parse_color_safe, quick_event_input_id};
+use crate::components::spacer::{vertical_spacer, fixed_spacer};
 
 /// Returns the scrollable ID for the week view time grid
 pub fn week_time_grid_id() -> cosmic::iced_core::id::Id {
@@ -18,10 +19,10 @@ use crate::localized_names;
 use crate::message::Message;
 use crate::models::WeekState;
 use crate::selection::SelectionState;
-use crate::styles::today_filled_style;
+use crate::styles::{today_filled_style, weekend_background};
 use crate::ui_constants::{
     PADDING_SMALL, FONT_SIZE_SMALL, FONT_SIZE_MEDIUM, COLOR_DAY_CELL_BORDER,
-    HOUR_ROW_HEIGHT, TIME_LABEL_WIDTH, COLOR_WEEKEND_BACKGROUND, BORDER_WIDTH_THIN,
+    HOUR_ROW_HEIGHT, TIME_LABEL_WIDTH, BORDER_WIDTH_THIN,
     SPACING_TINY, COLOR_CURRENT_TIME, BORDER_RADIUS,
 };
 
@@ -149,11 +150,7 @@ fn render_header_section<'a>(
     let mut day_headers = row().spacing(0);
 
     // Time column placeholder for day headers
-    day_headers = day_headers.push(
-        container(widget::text(""))
-            .width(Length::Fixed(TIME_LABEL_WIDTH))
-            .height(Length::Fixed(DAY_HEADER_HEIGHT))
-    );
+    day_headers = day_headers.push(fixed_spacer(TIME_LABEL_WIDTH, DAY_HEADER_HEIGHT));
 
     // Day headers
     for date in &week_state.days {
@@ -171,11 +168,7 @@ fn render_header_section<'a>(
                 .padding(PADDING_SMALL)
                 .center_x(Length::Fill)
                 .style(move |_theme: &cosmic::Theme| container::Style {
-                    background: if is_weekend {
-                        Some(Background::Color(COLOR_WEEKEND_BACKGROUND))
-                    } else {
-                        None
-                    },
+                    background: weekend_background(is_weekend),
                     border: Border {
                         width: BORDER_WIDTH_THIN,
                         color: COLOR_DAY_CELL_BORDER,
@@ -258,11 +251,7 @@ fn render_all_day_section<'a>(
             .height(Length::Fixed(height))
             .padding([2, 2])
             .style(move |_theme: &cosmic::Theme| container::Style {
-                background: if is_weekend {
-                    Some(Background::Color(COLOR_WEEKEND_BACKGROUND))
-                } else {
-                    None
-                },
+                background: weekend_background(is_weekend),
                 border: Border {
                     width: BORDER_WIDTH_THIN,
                     color: COLOR_DAY_CELL_BORDER,
@@ -286,8 +275,7 @@ fn render_all_day_events_for_day(date: NaiveDate, events: &[DisplayEvent], selec
     let mut col = column().spacing(ALL_DAY_SPACING as u16);
 
     for event in events {
-        let color = parse_hex_color(&event.color)
-            .unwrap_or(cosmic::iced::Color::from_rgb(0.5, 0.5, 0.5));
+        let color = parse_color_safe(&event.color);
         let uid = event.uid.clone();
         let is_selected = selected_event_uid == Some(&event.uid);
 
@@ -565,9 +553,7 @@ fn render_time_indicator_layer(
 
     // Position the indicator with a top spacer (centered on the line)
     let adjusted_offset = (total_offset - (dot_size / 2.0)).max(0.0);
-    let top_spacer = container(widget::text(""))
-        .height(Length::Fixed(adjusted_offset))
-        .width(Length::Fill);
+    let top_spacer = vertical_spacer(adjusted_offset);
 
     // Time indicator - line in all columns, dot only on today's column
     let time_indicator: Element<'static, Message> = if show_dot {
@@ -622,9 +608,7 @@ fn render_time_indicator_layer(
 
     // Fill remaining space after indicator
     let remaining_height = (total_height - adjusted_offset - dot_size).max(0.0);
-    let bottom_spacer = container(widget::text(""))
-        .height(Length::Fixed(remaining_height))
-        .width(Length::Fill);
+    let bottom_spacer = vertical_spacer(remaining_height);
 
     column()
         .spacing(0)
@@ -681,11 +665,7 @@ fn render_column_events(
         // Add spacer to position this event correctly
         if start_mins > current_mins {
             let spacer_height = ((start_mins - current_mins) as f32 / 60.0) * HOUR_ROW_HEIGHT;
-            col = col.push(
-                container(widget::text(""))
-                    .height(Length::Fixed(spacer_height))
-                    .width(Length::Fill)
-            );
+            col = col.push(vertical_spacer(spacer_height));
         }
 
         // Render the event
@@ -705,11 +685,7 @@ fn render_column_events(
     let total_mins = 24 * 60;
     if current_mins < total_mins {
         let remaining_height = ((total_mins - current_mins) as f32 / 60.0) * HOUR_ROW_HEIGHT;
-        col = col.push(
-            container(widget::text(""))
-                .height(Length::Fixed(remaining_height))
-                .width(Length::Fill)
-        );
+        col = col.push(vertical_spacer(remaining_height));
     }
 
     col.into()
@@ -722,8 +698,7 @@ fn render_positioned_event_block(
     height: f32,
     selected_event_uid: Option<&str>,
 ) -> Element<'static, Message> {
-    let color = parse_hex_color(&event.color)
-        .unwrap_or(cosmic::iced::Color::from_rgb(0.5, 0.5, 0.5));
+    let color = parse_color_safe(&event.color);
     let uid = event.uid.clone();
     let is_selected = selected_event_uid == Some(&event.uid);
 
@@ -808,10 +783,8 @@ fn render_clickable_hour_cell(date: NaiveDate, hour: u32, is_weekend: bool, is_s
                 Some(Background::Color(cosmic::iced::Color::from_rgba(
                     accent.red, accent.green, accent.blue, 0.2
                 )))
-            } else if is_weekend {
-                Some(Background::Color(COLOR_WEEKEND_BACKGROUND))
             } else {
-                None
+                weekend_background(is_weekend)
             };
             container::Style {
                 background,
@@ -936,8 +909,7 @@ fn render_quick_event_input_layer(
     let height = ((end_mins - start_mins) as f32 / 60.0) * HOUR_ROW_HEIGHT;
     let height = height.max(HOUR_ROW_HEIGHT); // Minimum height of 1 hour cell
 
-    let color = parse_hex_color(&calendar_color)
-        .unwrap_or(cosmic::iced::Color::from_rgb(0.23, 0.51, 0.97));
+    let color = parse_color_safe(&calendar_color);
 
     // Create text input for the event title
     let input = text_input("New event...", &text)
@@ -967,9 +939,7 @@ fn render_quick_event_input_layer(
         });
 
     // Create spacer to position the input at the correct time
-    let top_spacer = container(widget::text(""))
-        .height(Length::Fixed(top_offset))
-        .width(Length::Fill);
+    let top_spacer = vertical_spacer(top_offset);
 
     // Build column with spacer and input
     column()

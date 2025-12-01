@@ -36,6 +36,82 @@ pub enum SpanPosition {
     Last,
 }
 
+impl SpanPosition {
+    /// Create SpanPosition from start/end boolean flags
+    /// Useful when working with (is_event_start, is_event_end) tuples
+    pub fn from_start_end(is_start: bool, is_end: bool) -> Self {
+        match (is_start, is_end) {
+            (true, true) => SpanPosition::Single,
+            (true, false) => SpanPosition::First,
+            (false, true) => SpanPosition::Last,
+            (false, false) => SpanPosition::Middle,
+        }
+    }
+}
+
+/// Calculate border radius for an event chip based on span position.
+/// Returns [top-left, top-right, bottom-right, bottom-left] radii.
+pub fn span_border_radius(span_position: SpanPosition, radius: f32) -> [f32; 4] {
+    match span_position {
+        SpanPosition::Single => [radius, radius, radius, radius],
+        SpanPosition::First => [radius, 0.0, 0.0, radius],
+        SpanPosition::Middle => [0.0, 0.0, 0.0, 0.0],
+        SpanPosition::Last => [0.0, radius, radius, 0.0],
+    }
+}
+
+/// Calculate border radius from start/end boolean flags.
+/// Convenience function that combines from_start_end and span_border_radius.
+pub fn span_border_radius_from_flags(is_start: bool, is_end: bool, radius: f32) -> [f32; 4] {
+    span_border_radius(SpanPosition::from_start_end(is_start, is_end), radius)
+}
+
+/// Calculate padding for an event chip based on span position.
+/// Returns [top, right, bottom, left] padding.
+/// Reduces padding on sides that continue to adjacent days.
+pub fn span_padding(span_position: SpanPosition) -> [u16; 4] {
+    match span_position {
+        SpanPosition::Single => [2, 4, 2, 4],
+        SpanPosition::First => [2, 0, 2, 4],   // No right padding - continues right
+        SpanPosition::Middle => [2, 0, 2, 0],  // No horizontal padding - continues both sides
+        SpanPosition::Last => [2, 4, 2, 0],    // No left padding - continues left
+    }
+}
+
+/// Opacity values for event chip rendering based on selection/drag state.
+/// Used to provide visual feedback when events are selected or being dragged.
+#[derive(Debug, Clone, Copy)]
+pub struct ChipOpacity {
+    /// Background opacity (e.g., 0.15 for dragging, 0.5 for selected, 0.3 default)
+    pub background: f32,
+    /// Text opacity (e.g., 0.4 for dragging, 1.0 otherwise)
+    pub text: f32,
+}
+
+impl ChipOpacity {
+    /// Calculate opacity values based on selection and drag state.
+    /// - Dragging: very dim background (0.15), dim text (0.4) to show event is "in flight"
+    /// - Selected: semi-transparent background (0.5), full text (1.0)
+    /// - Default: subtle background (0.3), full text (1.0)
+    pub fn from_state(is_selected: bool, is_being_dragged: bool) -> Self {
+        let background = if is_being_dragged {
+            0.15
+        } else if is_selected {
+            0.5
+        } else {
+            0.3
+        };
+        let text = if is_being_dragged { 0.4 } else { 1.0 };
+        Self { background, text }
+    }
+
+    /// Calculate opacity for a dot/indicator element during drag.
+    /// Dots don't have selection state, only drag state.
+    pub fn dot_opacity(is_being_dragged: bool) -> f32 {
+        if is_being_dragged { 0.3 } else { 1.0 }
+    }
+}
+
 /// Event with associated calendar color for display
 #[derive(Debug, Clone)]
 pub struct DisplayEvent {
@@ -90,23 +166,8 @@ fn render_all_day_chip(
     color: cosmic::iced::Color,
     span_position: SpanPosition,
 ) -> Element<'static, Message> {
-    // Calculate border radius based on span position
-    let radius = BORDER_RADIUS[0];
-    let border_radius: [f32; 4] = match span_position {
-        SpanPosition::Single => [radius, radius, radius, radius],
-        SpanPosition::First => [radius, 0.0, 0.0, radius],
-        SpanPosition::Middle => [0.0, 0.0, 0.0, 0.0],
-        SpanPosition::Last => [0.0, radius, radius, 0.0],
-    };
-
-    // Padding: reduce/remove horizontal padding on sides that continue
-    // [top, right, bottom, left]
-    let padding: [u16; 4] = match span_position {
-        SpanPosition::Single => [2, 4, 2, 4],
-        SpanPosition::First => [2, 0, 2, 4],   // No right padding - continues right
-        SpanPosition::Middle => [2, 0, 2, 0],  // No horizontal padding - continues both sides
-        SpanPosition::Last => [2, 4, 2, 0],    // No left padding - continues left
-    };
+    let border_radius = span_border_radius(span_position, BORDER_RADIUS[0]);
+    let padding = span_padding(span_position);
 
     // Note: Multi-day events are now rendered in the overlay layer.
     // This function is only called for single-day all-day events (SpanPosition::Single).
@@ -255,20 +316,8 @@ fn render_all_day_chip_selectable(
     is_selected: bool,
     is_being_dragged: bool,
 ) -> Element<'static, Message> {
-    let radius = BORDER_RADIUS[0];
-    let border_radius: [f32; 4] = match span_position {
-        SpanPosition::Single => [radius, radius, radius, radius],
-        SpanPosition::First => [radius, 0.0, 0.0, radius],
-        SpanPosition::Middle => [0.0, 0.0, 0.0, 0.0],
-        SpanPosition::Last => [0.0, radius, radius, 0.0],
-    };
-
-    let padding: [u16; 4] = match span_position {
-        SpanPosition::Single => [2, 4, 2, 4],
-        SpanPosition::First => [2, 0, 2, 4],
-        SpanPosition::Middle => [2, 0, 2, 0],
-        SpanPosition::Last => [2, 4, 2, 0],
-    };
+    let border_radius = span_border_radius(span_position, BORDER_RADIUS[0]);
+    let padding = span_padding(span_position);
 
     let content: Element<'static, Message> = widget::text(summary)
         .size(11)
@@ -276,8 +325,7 @@ fn render_all_day_chip_selectable(
         .into();
 
     // Dim opacity when being dragged to show it's in motion
-    let base_opacity = if is_being_dragged { 0.15 } else if is_selected { 0.5 } else { 0.3 };
-    let text_opacity = if is_being_dragged { 0.4 } else { 1.0 };
+    let opacity = ChipOpacity::from_state(is_selected, is_being_dragged);
 
     container(content)
         .padding(padding)
@@ -286,14 +334,14 @@ fn render_all_day_chip_selectable(
         .style(move |_theme: &cosmic::Theme| {
             container::Style {
                 background: Some(cosmic::iced::Background::Color(
-                    color.scale_alpha(base_opacity)
+                    color.scale_alpha(opacity.background)
                 )),
                 border: cosmic::iced::Border {
                     color: if is_selected { color } else { cosmic::iced::Color::TRANSPARENT },
                     width: if is_selected { BORDER_WIDTH_HIGHLIGHT } else { 0.0 },
                     radius: border_radius.into(),
                 },
-                text_color: Some(color.scale_alpha(text_opacity)),
+                text_color: Some(color.scale_alpha(opacity.text)),
                 ..Default::default()
             }
         })
@@ -309,7 +357,7 @@ fn render_timed_event_chip_selectable(
     is_being_dragged: bool,
 ) -> Element<'static, Message> {
     // Dim opacity when being dragged
-    let dot_opacity = if is_being_dragged { 0.3 } else { 1.0 };
+    let dot_opacity = ChipOpacity::dot_opacity(is_being_dragged);
 
     let dot = container(widget::text(""))
         .width(Length::Fixed(TIMED_EVENT_DOT_SIZE))

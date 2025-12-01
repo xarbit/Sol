@@ -1,12 +1,13 @@
-use cosmic::iced::{alignment, Background, Border, Length};
+use cosmic::iced::{alignment, Border, Length};
 use cosmic::widget::{column, container, row};
 use cosmic::{widget, Element};
 
 use crate::locale::LocalePreferences;
 use crate::message::Message;
+use crate::styles::weekend_background;
 use crate::ui_constants::{
     PADDING_SMALL, FONT_SIZE_SMALL, COLOR_DAY_CELL_BORDER,
-    HOUR_ROW_HEIGHT, TIME_LABEL_WIDTH, COLOR_WEEKEND_BACKGROUND, BORDER_WIDTH_THIN
+    HOUR_ROW_HEIGHT, TIME_LABEL_WIDTH, BORDER_WIDTH_THIN
 };
 
 /// Information about a single day column in the time grid
@@ -71,11 +72,7 @@ pub fn render_time_grid(
                     .width(Length::Fill)
                     .height(Length::Fixed(HOUR_ROW_HEIGHT))
                     .style(move |_theme: &cosmic::Theme| container::Style {
-                        background: if is_weekend {
-                            Some(Background::Color(COLOR_WEEKEND_BACKGROUND))
-                        } else {
-                            None
-                        },
+                        background: weekend_background(is_weekend),
                         border: Border {
                             width: BORDER_WIDTH_THIN,
                             color: COLOR_DAY_CELL_BORDER,
@@ -103,11 +100,7 @@ pub fn render_time_column_placeholder(height: f32) -> Element<'static, Message> 
 /// Style for a grid cell with border
 pub fn grid_cell_style(is_weekend: bool) -> container::Style {
     container::Style {
-        background: if is_weekend {
-            Some(Background::Color(COLOR_WEEKEND_BACKGROUND))
-        } else {
-            None
-        },
+        background: weekend_background(is_weekend),
         border: Border {
             width: BORDER_WIDTH_THIN,
             color: COLOR_DAY_CELL_BORDER,

@@ -174,3 +174,9 @@ pub fn parse_hex_color(hex: &str) -> Result<Color, ()> {
 
     Ok(Color::from_rgb8(r, g, b))
 }
+
+/// Parse hex color string safely, returning a default gray color on failure.
+/// Use this instead of `parse_hex_color().unwrap_or()` pattern.
+pub fn parse_color_safe(hex: &str) -> Color {
+    parse_hex_color(hex).unwrap_or(COLOR_DEFAULT_GRAY)
+}

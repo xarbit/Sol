@@ -6,6 +6,17 @@ use crate::ui_constants::{
     COLOR_DAY_CELL_BORDER, COLOR_WEEKEND_BACKGROUND, COLOR_TODAY_BLUE
 };
 
+/// Returns the weekend background if is_weekend is true, None otherwise.
+/// Use this instead of repeating the `if is_weekend { Some(Background::Color(...)) } else { None }` pattern.
+#[inline]
+pub fn weekend_background(is_weekend: bool) -> Option<Background> {
+    if is_weekend {
+        Some(Background::Color(COLOR_WEEKEND_BACKGROUND))
+    } else {
+        None
+    }
+}
+
 /// Style for the overlay sidebar in mobile/condensed mode
 pub fn overlay_sidebar_style(theme: &cosmic::Theme) -> container::Style {
     container::Style {
@@ -43,11 +54,7 @@ pub fn today_filled_style(theme: &cosmic::Theme) -> container::Style {
 /// Style for selected day cell - border with accent color, preserving weekend background
 pub fn selected_day_style(theme: &cosmic::Theme, is_weekend: bool) -> container::Style {
     container::Style {
-        background: if is_weekend {
-            Some(Background::Color(COLOR_WEEKEND_BACKGROUND))
-        } else {
-            None
-        },
+        background: weekend_background(is_weekend),
         border: Border {
             color: theme.cosmic().accent_color().into(),
             width: BORDER_WIDTH_HIGHLIGHT,
@@ -75,11 +82,7 @@ pub fn today_circle_style(_theme: &cosmic::Theme, size: f32) -> container::Style
 /// Style for regular day cell with optional weekend background
 pub fn day_cell_style(is_weekend: bool) -> container::Style {
     container::Style {
-        background: if is_weekend {
-            Some(Background::Color(COLOR_WEEKEND_BACKGROUND))
-        } else {
-            None
-        },
+        background: weekend_background(is_weekend),
         border: Border {
             color: COLOR_DAY_CELL_BORDER,
             width: BORDER_WIDTH_NORMAL,
