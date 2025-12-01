@@ -238,6 +238,8 @@ mod tests {
         }
     }
 
+    // ==================== Event to iCal Tests ====================
+
     #[test]
     fn test_event_to_ical() {
         let event = create_test_event();
@@ -249,5 +251,121 @@ mod tests {
         assert!(ical_string.contains("Test Export Event"));
         assert!(ical_string.contains("END:VEVENT"));
         assert!(ical_string.contains("END:VCALENDAR"));
+    }
+
+    #[test]
+    fn test_event_to_ical_with_location() {
+        let event = create_test_event();
+        let ical = ExportHandler::event_to_ical(&event);
+        let ical_string = ical.to_string();
+
+        assert!(ical_string.contains("LOCATION:Test Location"));
+    }
+
+    #[test]
+    fn test_event_to_ical_with_notes() {
+        let event = create_test_event();
+        let ical = ExportHandler::event_to_ical(&event);
+        let ical_string = ical.to_string();
+
+        assert!(ical_string.contains("DESCRIPTION:Test notes"));
+    }
+
+    #[test]
+    fn test_event_to_ical_with_uid() {
+        let event = create_test_event();
+        let ical = ExportHandler::event_to_ical(&event);
+        let ical_string = ical.to_string();
+
+        assert!(ical_string.contains("UID:test-export-1"));
+    }
+
+    #[test]
+    fn test_event_to_ical_minimal_event() {
+        let event = CalendarEvent {
+            uid: "minimal-1".to_string(),
+            summary: "Minimal Event".to_string(),
+            location: None,
+            all_day: false,
+            start: Utc.with_ymd_and_hms(2025, 12, 1, 10, 0, 0).unwrap(),
+            end: Utc.with_ymd_and_hms(2025, 12, 1, 11, 0, 0).unwrap(),
+            travel_time: TravelTime::None,
+            repeat: RepeatFrequency::Never,
+            invitees: vec![],
+            alert: AlertTime::None,
+            alert_second: None,
+            attachments: vec![],
+            url: None,
+            notes: None,
+        };
+
+        let ical = ExportHandler::event_to_ical(&event);
+        let ical_string = ical.to_string();
+
+        assert!(ical_string.contains("BEGIN:VCALENDAR"));
+        assert!(ical_string.contains("Minimal Event"));
+        assert!(!ical_string.contains("LOCATION:"));
+        assert!(!ical_string.contains("DESCRIPTION:"));
+    }
+
+    #[test]
+    fn test_event_to_ical_with_url() {
+        let mut event = create_test_event();
+        event.url = Some("https://example.com/meeting".to_string());
+
+        let ical = ExportHandler::event_to_ical(&event);
+        let ical_string = ical.to_string();
+
+        assert!(ical_string.contains("URL:https://example.com/meeting"));
+    }
+
+    #[test]
+    fn test_event_to_ical_unicode_content() {
+        let mut event = create_test_event();
+        event.summary = "会议 Meeting 📅".to_string();
+        event.location = Some("北京 Beijing".to_string());
+        event.notes = Some("备注 Notes 🗒️".to_string());
+
+        let ical = ExportHandler::event_to_ical(&event);
+        let ical_string = ical.to_string();
+
+        assert!(ical_string.contains("会议 Meeting 📅"));
+        assert!(ical_string.contains("北京 Beijing"));
+        assert!(ical_string.contains("备注 Notes 🗒️"));
+    }
+
+    // ==================== ExportError Display Tests ====================
+
+    #[test]
+    fn test_export_error_display_io() {
+        let error = ExportError::IoError("File not found".to_string());
+        assert_eq!(error.to_string(), "I/O error: File not found");
+    }
+
+    #[test]
+    fn test_export_error_display_format() {
+        let error = ExportError::FormatError("Invalid iCal format".to_string());
+        assert_eq!(error.to_string(), "Format error: Invalid iCal format");
+    }
+
+    #[test]
+    fn test_export_error_display_parse() {
+        let error = ExportError::ParseError("Unexpected token".to_string());
+        assert_eq!(error.to_string(), "Parse error: Unexpected token");
+    }
+
+    #[test]
+    fn test_export_error_display_calendar_not_found() {
+        let error = ExportError::CalendarNotFound("personal".to_string());
+        assert_eq!(error.to_string(), "Calendar not found: personal");
+    }
+
+    // ==================== ExportError Debug Tests ====================
+
+    #[test]
+    fn test_export_error_debug() {
+        let error = ExportError::IoError("test".to_string());
+        let debug_str = format!("{:?}", error);
+        assert!(debug_str.contains("IoError"));
     }
 }

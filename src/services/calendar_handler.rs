@@ -266,11 +266,33 @@ impl CalendarHandler {
 mod tests {
     use super::*;
 
+    // ==================== Validation Tests ====================
+
     #[test]
     fn test_validate_empty_name() {
         let data = NewCalendarData {
             name: "".to_string(),
             color: "#FF0000".to_string(),
+        };
+        let result = CalendarHandler::validate(&data);
+        assert!(matches!(result, Err(CalendarError::ValidationError(_))));
+    }
+
+    #[test]
+    fn test_validate_whitespace_only_name() {
+        let data = NewCalendarData {
+            name: "   ".to_string(),
+            color: "#FF0000".to_string(),
+        };
+        let result = CalendarHandler::validate(&data);
+        assert!(matches!(result, Err(CalendarError::ValidationError(_))));
+    }
+
+    #[test]
+    fn test_validate_empty_color() {
+        let data = NewCalendarData {
+            name: "Work".to_string(),
+            color: "".to_string(),
         };
         let result = CalendarHandler::validate(&data);
         assert!(matches!(result, Err(CalendarError::ValidationError(_))));
@@ -287,9 +309,63 @@ mod tests {
     }
 
     #[test]
+    fn test_validate_unicode_name() {
+        let data = NewCalendarData {
+            name: "工作日历 📅".to_string(),
+            color: "#3B82F6".to_string(),
+        };
+        let result = CalendarHandler::validate(&data);
+        assert!(result.is_ok());
+    }
+
+    // ==================== Default Color Tests ====================
+
+    #[test]
     fn test_default_color() {
         let color = CalendarHandler::default_color();
         assert!(!color.is_empty());
         assert!(color.starts_with('#'));
+    }
+
+    #[test]
+    fn test_default_color_is_valid_hex() {
+        let color = CalendarHandler::default_color();
+        assert!(color.len() == 7); // #RRGGBB format
+        assert!(color.chars().skip(1).all(|c| c.is_ascii_hexdigit()));
+    }
+
+    // ==================== CalendarError Display Tests ====================
+
+    #[test]
+    fn test_calendar_error_display_not_found() {
+        let error = CalendarError::NotFound("cal-123".to_string());
+        assert_eq!(error.to_string(), "Calendar not found: cal-123");
+    }
+
+    #[test]
+    fn test_calendar_error_display_validation() {
+        let error = CalendarError::ValidationError("Name required".to_string());
+        assert_eq!(error.to_string(), "Invalid calendar: Name required");
+    }
+
+    #[test]
+    fn test_calendar_error_display_config() {
+        let error = CalendarError::ConfigError("Write failed".to_string());
+        assert_eq!(error.to_string(), "Config error: Write failed");
+    }
+
+    #[test]
+    fn test_calendar_error_display_duplicate_id() {
+        let error = CalendarError::DuplicateId("work".to_string());
+        assert_eq!(error.to_string(), "Calendar ID already exists: work");
+    }
+
+    // ==================== CalendarError Debug Tests ====================
+
+    #[test]
+    fn test_calendar_error_debug() {
+        let error = CalendarError::NotFound("test".to_string());
+        let debug_str = format!("{:?}", error);
+        assert!(debug_str.contains("NotFound"));
     }
 }

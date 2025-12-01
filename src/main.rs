@@ -53,13 +53,11 @@ pub fn main() -> cosmic::iced::Result {
                     }
                     Err(e) => {
                         log::error!("Failed to clear events: {}", e);
-                        eprintln!("Failed to clear events: {}", e);
                     }
                 }
             }
             Err(e) => {
                 log::error!("Failed to open database: {}", e);
-                eprintln!("Failed to open database: {}", e);
             }
         }
     }

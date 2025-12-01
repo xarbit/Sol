@@ -317,6 +317,8 @@ mod tests {
         }
     }
 
+    // ==================== Event Validation Tests ====================
+
     #[test]
     fn test_validate_event_success() {
         let event = create_test_event("test-1", "Valid Event");
@@ -326,6 +328,13 @@ mod tests {
     #[test]
     fn test_validate_event_empty_title() {
         let event = create_test_event("test-1", "");
+        let result = EventHandler::validate_event(&event);
+        assert!(matches!(result, Err(EventError::ValidationError(_))));
+    }
+
+    #[test]
+    fn test_validate_event_whitespace_only_title() {
+        let event = create_test_event("test-1", "   ");
         let result = EventHandler::validate_event(&event);
         assert!(matches!(result, Err(EventError::ValidationError(_))));
     }
@@ -342,6 +351,111 @@ mod tests {
     fn test_validate_event_end_before_start() {
         let mut event = create_test_event("test-1", "Test Event");
         event.end = Utc.with_ymd_and_hms(2025, 11, 30, 9, 0, 0).unwrap(); // Before start
+        let result = EventHandler::validate_event(&event);
+        assert!(matches!(result, Err(EventError::ValidationError(_))));
+    }
+
+    #[test]
+    fn test_validate_event_same_start_and_end() {
+        let mut event = create_test_event("test-1", "Zero Duration Event");
+        event.end = event.start; // Same time - should be valid (zero duration)
+        let result = EventHandler::validate_event(&event);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_validate_event_with_all_fields() {
+        let mut event = create_test_event("test-full", "Complete Event");
+        event.location = Some("Test Location".to_string());
+        event.all_day = true;
+        event.notes = Some("Test notes".to_string());
+        event.url = Some("https://example.com".to_string());
+        event.invitees = vec!["test@example.com".to_string()];
+        event.travel_time = TravelTime::ThirtyMinutes;
+        event.repeat = RepeatFrequency::Weekly;
+        event.alert = AlertTime::FifteenMinutes;
+        event.alert_second = Some(AlertTime::OneHour);
+        event.attachments = vec!["file.pdf".to_string()];
+
+        let result = EventHandler::validate_event(&event);
+        assert!(result.is_ok());
+    }
+
+    // ==================== EventError Display Tests ====================
+
+    #[test]
+    fn test_event_error_display_validation() {
+        let error = EventError::ValidationError("Test validation error".to_string());
+        assert_eq!(error.to_string(), "Validation error: Test validation error");
+    }
+
+    #[test]
+    fn test_event_error_display_calendar_not_found() {
+        let error = EventError::CalendarNotFound("cal-123".to_string());
+        assert_eq!(error.to_string(), "Calendar not found: cal-123");
+    }
+
+    #[test]
+    fn test_event_error_display_event_not_found() {
+        let error = EventError::EventNotFound("event-456".to_string());
+        assert_eq!(error.to_string(), "Event not found: event-456");
+    }
+
+    #[test]
+    fn test_event_error_display_storage() {
+        let error = EventError::StorageError("Database connection failed".to_string());
+        assert_eq!(error.to_string(), "Storage error: Database connection failed");
+    }
+
+    #[test]
+    fn test_event_error_display_sync() {
+        let error = EventError::SyncError("Network timeout".to_string());
+        assert_eq!(error.to_string(), "Sync error: Network timeout");
+    }
+
+    // ==================== EventError Debug Tests ====================
+
+    #[test]
+    fn test_event_error_debug() {
+        let error = EventError::ValidationError("test".to_string());
+        let debug_str = format!("{:?}", error);
+        assert!(debug_str.contains("ValidationError"));
+    }
+
+    // ==================== Edge Case Tests ====================
+
+    #[test]
+    fn test_validate_event_unicode_title() {
+        let event = create_test_event("test-unicode", "会议 📅 Meeting");
+        let result = EventHandler::validate_event(&event);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_validate_event_very_long_title() {
+        let long_title = "A".repeat(1000);
+        let event = create_test_event("test-long", &long_title);
+        let result = EventHandler::validate_event(&event);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_validate_event_special_chars_in_uid() {
+        let event = create_test_event("test-uid-with-special@chars.com", "Special UID Event");
+        let result = EventHandler::validate_event(&event);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_validate_event_multiline_title() {
+        let event = create_test_event("test-multiline", "Line 1\nLine 2");
+        let result = EventHandler::validate_event(&event);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_validate_event_tab_only_title() {
+        let event = create_test_event("test-tabs", "\t\t");
         let result = EventHandler::validate_event(&event);
         assert!(matches!(result, Err(EventError::ValidationError(_))));
     }
