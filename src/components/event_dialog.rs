@@ -166,6 +166,8 @@ pub fn render_event_dialog<'a>(
     let start_time_with_picker: Element<'_, Message> = if state.start_time_picker_open {
         let time_popup = super::time_picker::render_time_picker(
             state.start_time,
+            super::time_picker::start_time_hour_id(),
+            super::time_picker::start_time_minute_id(),
             Message::EventDialogStartTimeHourChanged,
             Message::EventDialogStartTimeMinuteChanged,
             Message::EventDialogToggleStartTimePicker,
@@ -230,6 +232,8 @@ pub fn render_event_dialog<'a>(
     let end_time_with_picker: Element<'_, Message> = if state.end_time_picker_open {
         let time_popup = super::time_picker::render_time_picker(
             state.end_time,
+            super::time_picker::end_time_hour_id(),
+            super::time_picker::end_time_minute_id(),
             Message::EventDialogEndTimeHourChanged,
             Message::EventDialogEndTimeMinuteChanged,
             Message::EventDialogToggleEndTimePicker,

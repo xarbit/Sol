@@ -3,7 +3,7 @@
 //! These handlers delegate to the EventHandler service for actual event operations.
 //! This ensures consistent validation, routing, and cache management.
 
-use chrono::{NaiveDate, NaiveTime, TimeZone, Utc};
+use chrono::{NaiveDate, NaiveTime, TimeZone, Timelike, Utc};
 use cosmic::widget::{calendar::CalendarModel, text_editor};
 use log::{debug, error, info, warn};
 use uuid::Uuid;
@@ -259,9 +259,14 @@ pub fn handle_open_new_event_dialog(app: &mut CosmicCalendar) {
     debug!("handle_open_new_event_dialog: Opening new event dialog");
     let today = app.selected_date;
 
-    // Default to 9:00 AM - 10:00 AM
-    let default_start_time = NaiveTime::from_hms_opt(9, 0, 0);
-    let default_end_time = NaiveTime::from_hms_opt(10, 0, 0);
+    // Default to current time (rounded to 5 minutes) and +1 hour for end time
+    let now = chrono::Local::now().time();
+    let rounded_minute = (now.minute() / 5) * 5;
+    let default_start_time = NaiveTime::from_hms_opt(now.hour(), rounded_minute, 0);
+    let default_end_time = default_start_time.map(|t| {
+        let new_hour = (t.hour() + 1) % 24;
+        NaiveTime::from_hms_opt(new_hour, t.minute(), 0).unwrap_or(t)
+    });
 
     // Use selected calendar or first available
     let calendar_id = app

@@ -516,10 +516,21 @@ pub fn handle_message(app: &mut CosmicCalendar, message: Message) -> Task<Messag
         Message::EventDialogToggleStartTimePicker => {
             #[allow(deprecated)]
             if let Some(ref mut dialog) = app.event_dialog {
-                dialog.start_time_picker_open = !dialog.start_time_picker_open;
+                let was_open = dialog.start_time_picker_open;
+                dialog.start_time_picker_open = !was_open;
                 dialog.end_time_picker_open = false;
                 dialog.start_date_picker_open = false;
                 dialog.end_date_picker_open = false;
+
+                // When opening the picker, scroll to the already-selected time
+                if !was_open {
+                    use crate::components::time_picker::scroll_start_time_to;
+                    use chrono::Timelike;
+
+                    if let Some(time) = dialog.start_time {
+                        return scroll_start_time_to(time.hour(), time.minute());
+                    }
+                }
             }
         }
         Message::EventDialogStartTimeHourChanged(hour) => {
@@ -529,6 +540,12 @@ pub fn handle_message(app: &mut CosmicCalendar, message: Message) -> Task<Messag
                 if let Some(new_time) = chrono::NaiveTime::from_hms_opt(hour, current.minute(), 0) {
                     dialog.start_time = Some(new_time);
                     dialog.start_time_input = new_time.format("%H:%M").to_string();
+                    // Auto-update end time to 1 hour after start time
+                    let end_hour = (new_time.hour() + 1) % 24;
+                    if let Some(end_time) = chrono::NaiveTime::from_hms_opt(end_hour, new_time.minute(), 0) {
+                        dialog.end_time = Some(end_time);
+                        dialog.end_time_input = end_time.format("%H:%M").to_string();
+                    }
                 }
             }
         }
@@ -539,6 +556,12 @@ pub fn handle_message(app: &mut CosmicCalendar, message: Message) -> Task<Messag
                 if let Some(new_time) = chrono::NaiveTime::from_hms_opt(current.hour(), minute, 0) {
                     dialog.start_time = Some(new_time);
                     dialog.start_time_input = new_time.format("%H:%M").to_string();
+                    // Auto-update end time to 1 hour after start time
+                    let end_hour = (new_time.hour() + 1) % 24;
+                    if let Some(end_time) = chrono::NaiveTime::from_hms_opt(end_hour, new_time.minute(), 0) {
+                        dialog.end_time = Some(end_time);
+                        dialog.end_time_input = end_time.format("%H:%M").to_string();
+                    }
                 }
             }
         }
@@ -583,10 +606,21 @@ pub fn handle_message(app: &mut CosmicCalendar, message: Message) -> Task<Messag
         Message::EventDialogToggleEndTimePicker => {
             #[allow(deprecated)]
             if let Some(ref mut dialog) = app.event_dialog {
-                dialog.end_time_picker_open = !dialog.end_time_picker_open;
+                let was_open = dialog.end_time_picker_open;
+                dialog.end_time_picker_open = !was_open;
                 dialog.start_time_picker_open = false;
                 dialog.start_date_picker_open = false;
                 dialog.end_date_picker_open = false;
+
+                // When opening the picker, scroll to the already-selected time
+                if !was_open {
+                    use crate::components::time_picker::scroll_end_time_to;
+                    use chrono::Timelike;
+
+                    if let Some(time) = dialog.end_time {
+                        return scroll_end_time_to(time.hour(), time.minute());
+                    }
+                }
             }
         }
         Message::EventDialogEndTimeHourChanged(hour) => {

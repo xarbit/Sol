@@ -4,11 +4,76 @@
 //! selecting hours (0-23) and minutes (0, 5, 10, ... 55).
 
 use chrono::{NaiveTime, Timelike};
+use cosmic::app::Task;
 use cosmic::iced::Length;
+use cosmic::iced::widget::scrollable as iced_scrollable;
+use cosmic::iced_core::id::Id;
 use cosmic::widget::{button, column, container, row, scrollable, text};
 use cosmic::Element;
 
 use crate::fl;
+use crate::message::Message;
+
+/// Height of each time button row in pixels (button padding [4,8] + spacing 2 + text ~14)
+const TIME_ROW_HEIGHT: f32 = 30.0;
+
+/// Scrollable ID for start time hour picker
+pub fn start_time_hour_id() -> Id {
+    Id::new("start_time_hour")
+}
+
+/// Scrollable ID for start time minute picker
+pub fn start_time_minute_id() -> Id {
+    Id::new("start_time_minute")
+}
+
+/// Scrollable ID for end time hour picker
+pub fn end_time_hour_id() -> Id {
+    Id::new("end_time_hour")
+}
+
+/// Scrollable ID for end time minute picker
+pub fn end_time_minute_id() -> Id {
+    Id::new("end_time_minute")
+}
+
+/// Scroll the start time picker to show a specific hour and minute
+/// Returns a Task that scrolls both hour and minute columns
+pub fn scroll_start_time_to(hour: u32, minute: u32) -> Task<Message> {
+    let hour_offset = hour.saturating_sub(1) as f32 * TIME_ROW_HEIGHT;
+    let minute_index = minute / 5;
+    let minute_offset = minute_index.saturating_sub(1) as f32 * TIME_ROW_HEIGHT;
+
+    Task::batch(vec![
+        iced_scrollable::scroll_to(
+            start_time_hour_id(),
+            iced_scrollable::AbsoluteOffset { x: 0.0, y: hour_offset },
+        ),
+        iced_scrollable::scroll_to(
+            start_time_minute_id(),
+            iced_scrollable::AbsoluteOffset { x: 0.0, y: minute_offset },
+        ),
+    ])
+}
+
+/// Scroll the end time picker to show a specific hour and minute
+/// Returns a Task that scrolls both hour and minute columns
+pub fn scroll_end_time_to(hour: u32, minute: u32) -> Task<Message> {
+    let hour_offset = hour.saturating_sub(1) as f32 * TIME_ROW_HEIGHT;
+    let minute_index = minute / 5;
+    let minute_offset = minute_index.saturating_sub(1) as f32 * TIME_ROW_HEIGHT;
+
+    Task::batch(vec![
+        iced_scrollable::scroll_to(
+            end_time_hour_id(),
+            iced_scrollable::AbsoluteOffset { x: 0.0, y: hour_offset },
+        ),
+        iced_scrollable::scroll_to(
+            end_time_minute_id(),
+            iced_scrollable::AbsoluteOffset { x: 0.0, y: minute_offset },
+        ),
+    ])
+}
 
 /// Render a time picker popup with hour and minute columns
 ///
@@ -16,6 +81,8 @@ use crate::fl;
 ///
 /// # Arguments
 /// * `current_time` - The currently selected time (None defaults to 09:00)
+/// * `hour_id` - Scrollable ID for the hour column
+/// * `minute_id` - Scrollable ID for the minute column
 /// * `on_hour_change` - Callback when hour is selected, receives hour (0-23)
 /// * `on_minute_change` - Callback when minute is selected, receives minute (0, 5, 10, ...)
 /// * `on_apply` - Callback when the Apply button is pressed to close the picker
@@ -24,6 +91,8 @@ use crate::fl;
 /// ```ignore
 /// let picker = render_time_picker(
 ///     Some(NaiveTime::from_hms_opt(14, 30, 0).unwrap()),
+///     start_time_hour_id(),
+///     start_time_minute_id(),
 ///     |hour| MyMessage::HourChanged(hour),
 ///     |minute| MyMessage::MinuteChanged(minute),
 ///     MyMessage::CloseTimePicker,
@@ -31,6 +100,8 @@ use crate::fl;
 /// ```
 pub fn render_time_picker<'a, M: Clone + 'static>(
     current_time: Option<NaiveTime>,
+    hour_id: Id,
+    minute_id: Id,
     on_hour_change: impl Fn(u32) -> M + 'static,
     on_minute_change: impl Fn(u32) -> M + 'static,
     on_apply: M,
@@ -83,11 +154,14 @@ pub fn render_time_picker<'a, M: Clone + 'static>(
     }
 
     // Scrollable columns for hours and minutes - wider to accommodate scrollbar
+    // IDs enable programmatic scrolling to the selected value when picker opens
     let hour_scroll = scrollable(hour_buttons)
+        .id(hour_id)
         .height(Length::Fixed(200.0))
         .width(Length::Fixed(62.0));
 
     let minute_scroll = scrollable(minute_buttons)
+        .id(minute_id)
         .height(Length::Fixed(200.0))
         .width(Length::Fixed(62.0));
 

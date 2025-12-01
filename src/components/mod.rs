@@ -12,7 +12,7 @@ mod header_menu;
 mod mini_calendar;
 pub mod spacer;
 mod time_grid;
-mod time_picker;
+pub mod time_picker;
 mod toolbar;
 
 pub use calendar_dialog::{render_calendar_dialog, render_delete_calendar_dialog};
