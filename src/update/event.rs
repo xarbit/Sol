@@ -108,15 +108,39 @@ pub fn handle_commit_quick_event(app: &mut CosmicCalendar) {
 }
 
 /// Delete an event by its UID from all calendars
+/// This implements a robust deletion with verification and guaranteed UI refresh
 pub fn handle_delete_event(app: &mut CosmicCalendar, uid: String) {
     info!("handle_delete_event: Deleting event uid={}", uid);
 
-    // Use EventHandler to delete the event (searches all calendars)
-    if let Err(e) = EventHandler::delete_event(&mut app.calendar_manager, &uid) {
-        error!("handle_delete_event: Failed to delete event: {}", e);
+    // Clear selection if deleting the selected event
+    if app.selected_event_uid.as_ref() == Some(&uid) {
+        app.selected_event_uid = None;
+        debug!("handle_delete_event: Cleared selection for deleted event");
     }
-    // Refresh cached events to reflect deletion
+
+    // Use EventHandler to delete the event (searches all calendars)
+    // Now returns Result<bool> with verification
+    match EventHandler::delete_event(&mut app.calendar_manager, &uid) {
+        Ok(was_deleted) => {
+            if was_deleted {
+                info!("handle_delete_event: Event deleted and verified");
+            } else {
+                info!("handle_delete_event: Event was not found (may already be deleted)");
+            }
+        }
+        Err(e) => {
+            error!("handle_delete_event: Failed to delete event: {}", e);
+            // Still refresh UI even on error to ensure consistency
+        }
+    }
+
+    // Force complete cache refresh - clear and rebuild
+    // This ensures UI state matches database state
+    app.cached_week_events.clear();
+    app.cached_month_events.clear();
     app.refresh_cached_events();
+
+    info!("handle_delete_event: UI cache refreshed");
 }
 
 /// Select an event for viewing/editing

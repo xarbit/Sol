@@ -4,9 +4,12 @@
 
 use chrono::{Datelike, Local, NaiveDate};
 use cosmic::iced::{alignment, Background, Border, Length};
+use cosmic::iced_widget::keyed::Column as KeyedColumn;
 use cosmic::widget::{column, container, mouse_area, row};
 use cosmic::{widget, Element};
 use std::collections::HashMap;
+use std::hash::{Hash, Hasher};
+use std::collections::hash_map::DefaultHasher;
 
 use crate::components::{parse_color_safe, ChipOpacity, DisplayEvent};
 use crate::components::spacer::fixed_spacer;
@@ -21,6 +24,13 @@ use crate::ui_constants::{
 };
 
 use super::utils::{DAY_HEADER_HEIGHT, ALL_DAY_EVENT_HEIGHT, ALL_DAY_SPACING};
+
+/// Hash a string to a u64 key for keyed columns
+fn hash_key(s: &str) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    s.hash(&mut hasher);
+    hasher.finish()
+}
 
 /// Render the header section with day names, dates, and all-day events
 pub fn render_header_section<'a>(
@@ -157,16 +167,17 @@ fn render_all_day_section<'a>(
 }
 
 /// Render all-day events for a single day as a vertical stack with click and drag support
+/// Uses KeyedColumn to ensure proper widget reconciliation when events change
 fn render_all_day_events_for_day(date: NaiveDate, events: &[DisplayEvent], selected_event_uid: Option<&str>) -> Element<'static, Message> {
-    let mut col = column().spacing(ALL_DAY_SPACING as u16);
-
     // Check if this date is in the past (all-day events are past at end of day)
     let today = Local::now().date_naive();
     let is_past = date < today; // All-day events don't have time - check by day
 
-    for event in events {
+    // Use KeyedColumn for proper diffing when events are added/removed
+    let keyed_children: Vec<(u64, Element<'static, Message>)> = events.iter().map(|event| {
         let color = parse_color_safe(&event.color);
         let uid = event.uid.clone();
+        let key = hash_key(&uid);
         let is_selected = selected_event_uid == Some(&event.uid);
 
         // Selection highlight with past event dimming
@@ -201,14 +212,18 @@ fn render_all_day_events_for_day(date: NaiveDate, events: &[DisplayEvent], selec
         let color_hex = event.color.clone();
 
         // Wrap with mouse area for click and drag handling
-        let clickable_chip = mouse_area(chip)
+        let clickable_chip: Element<'static, Message> = mouse_area(chip)
             .on_press(Message::DragEventStart(uid.clone(), date, event.summary.clone(), color_hex))
             .on_release(Message::DragEventEnd)
             .on_double_click(Message::OpenEditEventDialog(uid))
-            .on_enter(Message::DragEventUpdate(date));
+            .on_enter(Message::DragEventUpdate(date))
+            .into();
 
-        col = col.push(clickable_chip);
-    }
+        // Use event UID hash as the key for proper reconciliation
+        (key, clickable_chip)
+    }).collect();
 
-    col.into()
+    KeyedColumn::with_children(keyed_children)
+        .spacing(ALL_DAY_SPACING as f32)
+        .into()
 }

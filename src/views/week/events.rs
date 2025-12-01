@@ -4,8 +4,11 @@
 
 use chrono::{Local, NaiveDate, Timelike};
 use cosmic::iced::{Background, Border, Length};
-use cosmic::widget::{column, container, mouse_area, row};
+use cosmic::iced_widget::keyed::Column as KeyedColumn;
+use cosmic::widget::{container, mouse_area, row};
 use cosmic::{widget, Element};
+use std::hash::{Hash, Hasher};
+use std::collections::hash_map::DefaultHasher;
 
 use crate::components::{parse_color_safe, ChipOpacity, DisplayEvent};
 use crate::components::spacer::vertical_spacer;
@@ -16,6 +19,13 @@ use super::utils::{event_time_range, PositionedEvent};
 
 /// Spacing between event blocks in pixels (vertical gap)
 const EVENT_BLOCK_SPACING: f32 = 2.0;
+
+/// Hash a string to a u64 key for keyed columns
+fn hash_key(s: &str) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    s.hash(&mut hasher);
+    hasher.finish()
+}
 
 /// Spacing between overlapping event columns in pixels (horizontal gap)
 const EVENT_COLUMN_SPACING: u16 = 4;
@@ -52,28 +62,36 @@ pub fn render_events_overlay_layer(
 }
 
 /// Render a single column of events with proper vertical spacing
+/// Uses KeyedColumn to ensure proper widget reconciliation when events change
 fn render_column_events(
     date: NaiveDate,
     events: &[&PositionedEvent],
     selected_event_uid: Option<&str>,
 ) -> Element<'static, Message> {
-    let mut col = column().spacing(0);
+    let mut keyed_children: Vec<(u64, Element<'static, Message>)> = Vec::new();
     let mut current_mins: u32 = 0;
 
     // Half spacing on each side of an event creates full spacing between consecutive events
     let half_spacing = EVENT_BLOCK_SPACING / 2.0;
 
-    for pe in events {
+    for (idx, pe) in events.iter().enumerate() {
         let (start_mins, end_mins) = event_time_range(&pe.event);
+        let event_key = hash_key(&pe.event.uid);
 
         // Add spacer to position this event correctly (includes top margin)
         if start_mins > current_mins {
             let spacer_height = ((start_mins - current_mins) as f32 / 60.0) * HOUR_ROW_HEIGHT;
-            col = col.push(vertical_spacer(spacer_height));
+            keyed_children.push((
+                hash_key(&format!("spacer-pre-{}", idx)),
+                vertical_spacer(spacer_height).into()
+            ));
         }
 
         // Add top margin spacer for this event
-        col = col.push(vertical_spacer(half_spacing));
+        keyed_children.push((
+            hash_key(&format!("margin-top-{}", pe.event.uid)),
+            vertical_spacer(half_spacing).into()
+        ));
 
         // Render the event (subtract full spacing from height for top + bottom margins)
         let ev_height = ((end_mins - start_mins) as f32 / 60.0) * HOUR_ROW_HEIGHT - EVENT_BLOCK_SPACING;
@@ -83,10 +101,14 @@ fn render_column_events(
             ev_height.max(16.0), // Minimum height for visibility
             selected_event_uid,
         );
-        col = col.push(event_block);
+        // Key the event block with its UID hash for proper reconciliation
+        keyed_children.push((event_key, event_block));
 
         // Add bottom margin spacer
-        col = col.push(vertical_spacer(half_spacing));
+        keyed_children.push((
+            hash_key(&format!("margin-bottom-{}", pe.event.uid)),
+            vertical_spacer(half_spacing).into()
+        ));
 
         current_mins = end_mins;
     }
@@ -95,10 +117,15 @@ fn render_column_events(
     let total_mins = 24 * 60;
     if current_mins < total_mins {
         let remaining_height = ((total_mins - current_mins) as f32 / 60.0) * HOUR_ROW_HEIGHT;
-        col = col.push(vertical_spacer(remaining_height));
+        keyed_children.push((
+            hash_key("spacer-remaining"),
+            vertical_spacer(remaining_height).into()
+        ));
     }
 
-    col.into()
+    KeyedColumn::with_children(keyed_children)
+        .spacing(0.0)
+        .into()
 }
 
 /// Render a positioned event block with the specified height

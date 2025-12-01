@@ -178,7 +178,7 @@ impl EventHandler {
 
         // First, delete the old event from wherever it exists
         debug!("EventHandler: Deleting old version of event uid={}", uid);
-        Self::delete_event(calendar_manager, &uid)?;
+        let _ = Self::delete_event(calendar_manager, &uid)?;
 
         // Add to the (possibly new) target calendar
         let calendar = calendar_manager
@@ -212,10 +212,11 @@ impl EventHandler {
     /// Delete an event by UID from all calendars.
     ///
     /// This searches all calendars for the event and deletes it.
+    /// Returns true if an event was deleted, false if not found.
     pub fn delete_event(
         calendar_manager: &mut CalendarManager,
         uid: &str,
-    ) -> EventResult<()> {
+    ) -> EventResult<bool> {
         info!("EventHandler: Deleting event uid={}", uid);
         let mut deleted = false;
 
@@ -224,7 +225,7 @@ impl EventHandler {
                 Ok(()) => {
                     info!("EventHandler: Deleted event uid={} from calendar '{}'",
                           uid, calendar.info().name);
-                    // Sync after successful deletion
+                    // Sync after successful deletion to force cache refresh
                     if let Err(e) = calendar.sync() {
                         warn!("EventHandler: Sync failed after delete: {}", e);
                     }
@@ -243,7 +244,26 @@ impl EventHandler {
             debug!("EventHandler: Event uid={} not found in any calendar (may already be deleted)", uid);
         }
 
-        Ok(())
+        // Force sync ALL calendars to ensure consistent state
+        // This handles edge cases where caches might be stale
+        for calendar in calendar_manager.sources_mut().iter_mut() {
+            if let Err(e) = calendar.sync() {
+                warn!("EventHandler: Sync failed for calendar '{}': {}", calendar.info().name, e);
+            }
+        }
+
+        // Verify deletion by checking if event still exists
+        let still_exists = Self::find_event(calendar_manager, uid).is_ok();
+        if still_exists {
+            error!("EventHandler: Event uid={} still exists after deletion attempt!", uid);
+            return Err(EventError::StorageError(format!(
+                "Event {} was not successfully deleted from database",
+                uid
+            )));
+        }
+
+        info!("EventHandler: Successfully verified event uid={} is deleted", uid);
+        Ok(deleted)
     }
 
     /// Find an event by UID across all calendars.
