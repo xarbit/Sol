@@ -26,6 +26,8 @@ pub enum ExportError {
     FormatError(String),
     /// Parse error
     ParseError(String),
+    /// Validation error (RFC 5545 compliance)
+    ValidationError(String),
     /// Calendar not found
     CalendarNotFound(String),
 }
@@ -36,6 +38,7 @@ impl std::fmt::Display for ExportError {
             ExportError::IoError(msg) => write!(f, "I/O error: {}", msg),
             ExportError::FormatError(msg) => write!(f, "Format error: {}", msg),
             ExportError::ParseError(msg) => write!(f, "Parse error: {}", msg),
+            ExportError::ValidationError(msg) => write!(f, "Validation error: {}", msg),
             ExportError::CalendarNotFound(id) => write!(f, "Calendar not found: {}", id),
         }
     }
@@ -400,6 +403,141 @@ impl ExportHandler {
         info!("ExportHandler: Successfully imported {} events (skipped {} duplicates)",
               imported_count, total_events - imported_count);
         Ok(imported_count)
+    }
+
+    /// Validate an iCalendar file for RFC 5545 compliance
+    /// Returns Ok(()) if valid, Err with validation errors otherwise
+    pub fn validate_ical_file<P: AsRef<Path>>(path: P) -> ExportResult<()> {
+        info!("ExportHandler: Validating iCal file {:?}", path.as_ref());
+
+        let ical_string = Self::read_ical_file(&path)?;
+        Self::validate_ical_string(&ical_string)
+    }
+
+    /// Validate an iCalendar string for RFC 5545 compliance
+    pub fn validate_ical_string(ical_str: &str) -> ExportResult<()> {
+        // Check minimum length
+        if ical_str.len() < 50 {
+            return Err(ExportError::ValidationError(
+                "File too short to be valid iCalendar".to_string()
+            ));
+        }
+
+        // Check for required VCALENDAR wrapper
+        if !ical_str.contains("BEGIN:VCALENDAR") || !ical_str.contains("END:VCALENDAR") {
+            return Err(ExportError::ValidationError(
+                "Missing required VCALENDAR wrapper (RFC 5545 §3.4)".to_string()
+            ));
+        }
+
+        // Check for VERSION property (required by RFC 5545 §3.7.4)
+        if !ical_str.contains("VERSION:") {
+            return Err(ExportError::ValidationError(
+                "Missing required VERSION property (RFC 5545 §3.7.4)".to_string()
+            ));
+        }
+
+        // Check for PRODID property (required by RFC 5545 §3.7.3)
+        if !ical_str.contains("PRODID:") {
+            warn!("ExportHandler: Missing PRODID property (RFC 5545 §3.7.3) - continuing anyway");
+        }
+
+        // Try to parse to verify structure
+        let calendar = ical_str.parse::<Calendar>().map_err(|e| {
+            error!("ExportHandler: iCalendar structure validation failed: {}", e);
+            ExportError::ValidationError(format!("Invalid iCalendar structure: {}", e))
+        })?;
+
+        // Validate each event component
+        let mut event_count = 0;
+        for component in &calendar.components {
+            if let icalendar::CalendarComponent::Event(event) = component {
+                Self::validate_event_component(event)?;
+                event_count += 1;
+            }
+        }
+
+        if event_count == 0 {
+            warn!("ExportHandler: No VEVENT components found in calendar");
+        }
+
+        info!("ExportHandler: Validation successful - {} events", event_count);
+        Ok(())
+    }
+
+    /// Validate a single event component for RFC 5545 compliance
+    fn validate_event_component(event: &Event) -> ExportResult<()> {
+        // UID is required by RFC 5545 §3.8.4.7
+        let uid = event.get_uid().ok_or_else(|| {
+            ExportError::ValidationError("Event missing required UID property (RFC 5545 §3.8.4.7)".to_string())
+        })?;
+
+        // DTSTAMP is required by RFC 5545 §3.8.7.2
+        if event.get_timestamp().is_none() {
+            warn!("ExportHandler: Event uid={} missing DTSTAMP (RFC 5545 §3.8.7.2) - continuing anyway", uid);
+        }
+
+        // DTSTART is required for most events (RFC 5545 §3.8.2.4)
+        let start = event.get_start().ok_or_else(|| {
+            ExportError::ValidationError(format!(
+                "Event uid={} missing required DTSTART property (RFC 5545 §3.8.2.4)", uid
+            ))
+        })?;
+
+        // If DTEND exists, validate it's after DTSTART
+        if let Some(end) = event.get_end() {
+            // Compare start and end times
+            let start_is_before_end = match (start, end) {
+                (DatePerhapsTime::DateTime(start_dt), DatePerhapsTime::DateTime(end_dt)) => {
+                    // For timed events, ensure end > start
+                    match (start_dt, end_dt) {
+                        (icalendar::CalendarDateTime::Utc(s), icalendar::CalendarDateTime::Utc(e)) => s < e,
+                        (icalendar::CalendarDateTime::Floating(s), icalendar::CalendarDateTime::Floating(e)) => s < e,
+                        _ => true, // Different timezone types, hard to compare - allow
+                    }
+                },
+                (DatePerhapsTime::Date(start_date), DatePerhapsTime::Date(end_date)) => {
+                    // For all-day events, end should be after or equal to start
+                    start_date <= end_date
+                },
+                _ => true, // Mixed date/datetime - allow
+            };
+
+            if !start_is_before_end {
+                return Err(ExportError::ValidationError(format!(
+                    "Event uid={} has DTEND before DTSTART", uid
+                )));
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Detect iCalendar dialect/producer from PRODID
+    /// Returns detected dialect for handling quirks
+    #[allow(dead_code)] // Future use for dialect-specific handling
+    pub fn detect_dialect(ical_str: &str) -> Option<&'static str> {
+        // Extract PRODID line
+        for line in ical_str.lines() {
+            if line.starts_with("PRODID:") {
+                let prodid = line.trim_start_matches("PRODID:").trim();
+
+                // Detect common producers
+                if prodid.contains("Google") {
+                    return Some("google");
+                } else if prodid.contains("Microsoft") || prodid.contains("Outlook") {
+                    return Some("outlook");
+                } else if prodid.contains("Apple") || prodid.contains("iCal") || prodid.contains("macOS") {
+                    return Some("apple");
+                } else if prodid.contains("Mozilla") || prodid.contains("Thunderbird") {
+                    return Some("thunderbird");
+                } else if prodid.contains("Yahoo") {
+                    return Some("yahoo");
+                }
+            }
+        }
+
+        None
     }
 }
 

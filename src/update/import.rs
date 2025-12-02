@@ -21,6 +21,21 @@ pub fn handle_import_file(app: &mut CosmicCalendar, path: PathBuf) -> Task<Messa
         .unwrap_or("Unknown file")
         .to_string();
 
+    // Validate the iCalendar file for RFC 5545 compliance
+    info!("handle_import_file: Validating file format");
+    if let Err(e) = ExportHandler::validate_ical_file(&path) {
+        error!("handle_import_file: Validation failed: {}", e);
+        // TODO: Show error dialog with validation details
+        return Task::none();
+    }
+
+    // Detect iCalendar dialect for better compatibility
+    if let Ok(content) = std::fs::read_to_string(&path) {
+        if let Some(dialect) = ExportHandler::detect_dialect(&content) {
+            info!("handle_import_file: Detected iCalendar dialect: {}", dialect);
+        }
+    }
+
     // Parse the iCalendar file
     match ExportHandler::parse_ical_file(&path) {
         Ok(events) => {
