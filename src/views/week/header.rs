@@ -176,9 +176,11 @@ fn render_all_day_events_for_day(date: NaiveDate, events: &[DisplayEvent], selec
     // Use KeyedColumn for proper diffing when events are added/removed
     let keyed_children: Vec<(u64, Element<'static, Message>)> = events.iter().map(|event| {
         let color = parse_color_safe(&event.color);
+        let calendar_id = event.calendar_id.clone();
         let uid = event.uid.clone();
         let key = hash_key(&uid);
-        let is_selected = selected_event_uid == Some(&event.uid);
+        let unique_id = event.unique_id();
+        let is_selected = selected_event_uid == Some(&unique_id);
 
         // Selection highlight with past event dimming
         let (bg_opacity, border_width) = ChipOpacity::timed_event_opacity(is_selected, is_past);
@@ -213,9 +215,9 @@ fn render_all_day_events_for_day(date: NaiveDate, events: &[DisplayEvent], selec
 
         // Wrap with mouse area for click and drag handling
         let clickable_chip: Element<'static, Message> = mouse_area(chip)
-            .on_press(Message::DragEventStart(uid.clone(), date, event.summary.clone(), color_hex))
+            .on_press(Message::DragEventStart(calendar_id.clone(), uid.clone(), date, event.summary.clone(), color_hex))
             .on_release(Message::DragEventEnd)
-            .on_double_click(Message::OpenEditEventDialog(uid))
+            .on_double_click(Message::OpenEditEventDialog(calendar_id, uid))
             .on_enter(Message::DragEventUpdate(date))
             .into();
 

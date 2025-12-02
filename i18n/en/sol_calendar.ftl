@@ -148,6 +148,8 @@ button-close = Close
 button-create = Create
 button-apply = Apply
 button-import = Import
+button-ok = OK
+button-revert = Revert
 
 # Dialog - Import
 dialog-import-title = Import Calendar Events
@@ -159,6 +161,15 @@ import-event-count = {$count ->
 import-target-calendar = Import into calendar
 import-events-preview = Events preview
 import-more-events = ...and {$count} more
+
+# Dialog - Import Result
+dialog-import-result-title = Import Complete
+import-success = Import completed successfully!
+import-failed = Import failed
+import-imported = Imported
+import-skipped = Skipped (duplicates)
+import-failed-count = Failed
+error = Error
 
 # Dialog - Calendar (New/Edit)
 dialog-new-calendar-title = New Calendar

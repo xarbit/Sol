@@ -112,8 +112,9 @@ pub fn render_unified_events_with_selection(
         } else {
             // Slot is empty - fill with a timed event if available
             if let Some(event) = timed_event_iter.next() {
-                let is_selected = selected_event_uid.map_or(false, |uid| uid == event.uid);
-                let is_being_dragged = dragging_event_uid.map_or(false, |uid| uid == event.uid);
+                let event_unique_id = event.unique_id();
+                let is_selected = selected_event_uid.map_or(false, |uid| uid == event_unique_id);
+                let is_being_dragged = dragging_event_uid.map_or(false, |uid| uid == event_unique_id);
                 col = col.push(render_clickable_event_chip(event, current_date, is_selected, is_drag_active, is_being_dragged));
             } else {
                 // No more timed events - render placeholder to maintain slot alignment
@@ -128,8 +129,9 @@ pub fn render_unified_events_with_selection(
         if shown >= max_visible {
             break;
         }
-        let is_selected = selected_event_uid.map_or(false, |uid| uid == event.uid);
-        let is_being_dragged = dragging_event_uid.map_or(false, |uid| uid == event.uid);
+        let event_unique_id = event.unique_id();
+        let is_selected = selected_event_uid.map_or(false, |uid| uid == event_unique_id);
+        let is_being_dragged = dragging_event_uid.map_or(false, |uid| uid == event_unique_id);
         col = col.push(render_clickable_event_chip(event, current_date, is_selected, is_drag_active, is_being_dragged));
         shown += 1;
     }

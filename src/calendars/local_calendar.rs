@@ -119,7 +119,7 @@ impl CalendarSource for LocalCalendar {
 
     fn update_event(&mut self, event: CalendarEvent) -> Result<(), Box<dyn Error>> {
         if let Ok(db) = self.db.lock() {
-            db.update_event(&event)?;
+            db.update_event(&self.info.id, &event)?;
         }
         // Update cache
         if let Some(existing) = self.cached_events.iter_mut().find(|e| e.uid == event.uid) {
@@ -130,7 +130,7 @@ impl CalendarSource for LocalCalendar {
 
     fn delete_event(&mut self, uid: &str) -> Result<(), Box<dyn Error>> {
         if let Ok(db) = self.db.lock() {
-            db.delete_event(uid)?;
+            db.delete_event(&self.info.id, uid)?;
         }
         // Update cache
         self.cached_events.retain(|e| e.uid != uid);

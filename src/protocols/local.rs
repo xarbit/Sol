@@ -36,14 +36,14 @@ impl Protocol for LocalProtocol {
         db.insert_event(calendar_id, event)
     }
 
-    fn update_event(&mut self, _calendar_id: &str, event: &CalendarEvent) -> ProtocolResult<()> {
+    fn update_event(&mut self, calendar_id: &str, event: &CalendarEvent) -> ProtocolResult<()> {
         let db = self.db.lock().map_err(|e| format!("Database lock error: {}", e))?;
-        db.update_event(event)
+        db.update_event(calendar_id, event)
     }
 
-    fn delete_event(&mut self, _calendar_id: &str, uid: &str) -> ProtocolResult<bool> {
+    fn delete_event(&mut self, calendar_id: &str, uid: &str) -> ProtocolResult<bool> {
         let db = self.db.lock().map_err(|e| format!("Database lock error: {}", e))?;
-        db.delete_event(uid)
+        db.delete_event(calendar_id, uid)
     }
 
     fn sync(&mut self, _calendar_id: &str) -> ProtocolResult<()> {

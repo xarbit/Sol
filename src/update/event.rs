@@ -207,18 +207,25 @@ pub fn handle_select_event(app: &mut CosmicCalendar, uid: String) {
 /// Takes the event UID, original date, summary (for preview), and color (for preview)
 pub fn handle_drag_event_start(
     app: &mut CosmicCalendar,
+    calendar_id: String,
     uid: String,
     original_date: NaiveDate,
     summary: String,
     color: String,
 ) {
-    debug!("handle_drag_event_start: uid={}, date={}, summary={}", uid, original_date, summary);
+    debug!("handle_drag_event_start: calendar={}, uid={}, date={}, summary={}", calendar_id, uid, original_date, summary);
 
     // Cancel any day selection in progress
     app.selection_state.cancel();
 
+    // Create unique_id for caching (calendar_id:uid)
+    let unique_id = format!("{}:{}", calendar_id, uid);
+
     // Start the drag operation with display info for the preview
-    app.event_drag_state.start(uid, original_date, summary, color);
+    app.event_drag_state.start(calendar_id, uid, original_date, summary, color);
+
+    // Cache the unique_id for UI rendering
+    app.dragging_event_unique_id = Some(unique_id);
 }
 
 /// Update the drag target date as user drags over cells
@@ -229,24 +236,26 @@ pub fn handle_drag_event_update(app: &mut CosmicCalendar, target_date: NaiveDate
 /// End the drag operation - move the event if target differs from original
 /// If the event wasn't moved (same date), treat it as a selection click
 pub fn handle_drag_event_end(app: &mut CosmicCalendar) {
-    // Get the event UID before ending the drag (for selection fallback)
+    // Get the event UID and calendar ID before ending the drag (for selection fallback)
     let event_uid = app.event_drag_state.event_uid.clone();
+    let calendar_id_opt = app.event_drag_state.calendar_id.clone();
 
     // Try to end the drag and get move info
     let move_result = app.event_drag_state.end();
 
     match move_result {
-        Some((uid, original_date, new_date)) => {
+        Some((calendar_id, uid, original_date, new_date)) => {
             // Event was dragged to a different date - move it
             // Extract master UID for recurring events (occurrence UIDs have format master-uid_YYYYMMDD)
             let master_uid = extract_master_uid(&uid);
-            info!("handle_drag_event_end: Moving event {} (master_uid={}) from {} to {}", uid, master_uid, original_date, new_date);
+            info!("handle_drag_event_end: Moving calendar={} event={} (master_uid={}) from {} to {}",
+                  calendar_id, uid, master_uid, original_date, new_date);
 
             // Calculate the offset in days
             let offset = (new_date - original_date).num_days();
 
-            // Find the event and move it (use master UID for recurring events)
-            if let Ok((event, calendar_id)) = EventHandler::find_event(&app.calendar_manager, master_uid) {
+            // Find the event in the specific calendar (use master UID for recurring events)
+            if let Ok(event) = EventHandler::find_event_in_calendar(&app.calendar_manager, &calendar_id, master_uid) {
                 // Calculate new start and end times by adding the offset
                 let new_start = event.start + chrono::Duration::days(offset);
                 let new_end = event.end + chrono::Duration::days(offset);
@@ -272,23 +281,30 @@ pub fn handle_drag_event_end(app: &mut CosmicCalendar) {
         }
         None => {
             // Event wasn't moved (clicked and released on same date) - treat as selection
-            if let Some(uid) = event_uid {
-                debug!("handle_drag_event_end: No move, selecting event {}", uid);
+            if let (Some(calendar_id), Some(uid)) = (calendar_id_opt, event_uid) {
+                // Create unique_id for selection (calendar_id:uid)
+                let unique_id = format!("{}:{}", calendar_id, uid);
+                debug!("handle_drag_event_end: No move, selecting event {}", unique_id);
                 // Toggle selection like regular click
-                if app.selected_event_uid.as_ref() == Some(&uid) {
+                if app.selected_event_uid.as_ref() == Some(&unique_id) {
                     app.selected_event_uid = None;
                 } else {
-                    app.selected_event_uid = Some(uid);
+                    app.selected_event_uid = Some(unique_id);
                 }
             }
         }
     }
+
+    // Clear the cached dragging unique_id
+    app.dragging_event_unique_id = None;
 }
 
 /// Cancel the drag operation
 pub fn handle_drag_event_cancel(app: &mut CosmicCalendar) {
     debug!("handle_drag_event_cancel: Cancelling drag");
     app.event_drag_state.cancel();
+    // Clear the cached dragging unique_id
+    app.dragging_event_unique_id = None;
 }
 
 /// Start editing a quick event on a specific date
@@ -387,16 +403,18 @@ pub fn handle_open_new_event_dialog(app: &mut CosmicCalendar) {
 }
 
 /// Open the event dialog for editing an existing event
-pub fn handle_open_edit_event_dialog(app: &mut CosmicCalendar, uid: String) {
+pub fn handle_open_edit_event_dialog(app: &mut CosmicCalendar, calendar_id: String, uid: String) {
     // Extract master UID for recurring events (occurrence UIDs have format master-uid_YYYYMMDD)
     let master_uid = extract_master_uid(&uid);
-    debug!("handle_open_edit_event_dialog: Opening edit dialog for uid={} (master_uid={})", uid, master_uid);
+    debug!("handle_open_edit_event_dialog: Opening edit dialog for calendar_id={} uid={} (master_uid={})",
+           calendar_id, uid, master_uid);
 
-    // Use EventHandler to find the event across all calendars (use master UID)
-    let (event, calendar_id) = match EventHandler::find_event(&app.calendar_manager, master_uid) {
-        Ok(result) => result,
+    // Use EventHandler to find the event in the specific calendar (use master UID)
+    let event = match EventHandler::find_event_in_calendar(&app.calendar_manager, &calendar_id, master_uid) {
+        Ok(event) => event,
         Err(e) => {
-            warn!("handle_open_edit_event_dialog: Event not found: {} (master_uid={})", e, master_uid);
+            warn!("handle_open_edit_event_dialog: Event not found in calendar '{}': {} (master_uid={})",
+                  calendar_id, e, master_uid);
             return;
         }
     };

@@ -29,6 +29,8 @@ pub const WEEKDAY_HEADER_HEIGHT: f32 = 32.0;
 /// For multi-day events, this represents one week's portion.
 #[derive(Debug, Clone)]
 pub struct DateEventSegment {
+    /// Calendar ID for unique event identification
+    pub calendar_id: String,
     /// Event UID for click/drag handling
     pub uid: String,
     /// Event summary/title
@@ -55,7 +57,7 @@ pub struct DateEventSegment {
 /// Result of computing slot assignments for a week.
 /// Contains both the event-to-slot mapping and per-day occupancy info.
 pub struct WeekSlotInfo {
-    /// Map of event UID -> slot index
+    /// Map of event unique ID (calendar_id:uid) -> slot index
     pub slots: HashMap<String, usize>,
     /// Occupied slots for each day (column) in the week: [day_0, day_1, ..., day_6]
     /// Each set contains the slot indices that are occupied by date events on that day
@@ -87,18 +89,19 @@ pub fn compute_week_date_event_slots(
     let week_end = week_dates[week_dates.len() - 1];
 
     // Collect all date events that appear in this week
-    // Store: (start_col, end_col, uid) - column range within this week
+    // Store: (start_col, end_col, unique_id) - column range within this week
     let mut date_events: Vec<(usize, usize, String)> = Vec::new();
-    let mut seen_uids: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let mut seen_ids: std::collections::HashSet<String> = std::collections::HashSet::new();
 
     for (col, date) in week_dates.iter().enumerate() {
         if let Some(day_events) = events_by_date.get(date) {
             for event in day_events {
-                if !event.all_day || seen_uids.contains(&event.uid) {
+                let unique_id = event.unique_id();
+                if !event.all_day || seen_ids.contains(&unique_id) {
                     continue;
                 }
 
-                seen_uids.insert(event.uid.clone());
+                seen_ids.insert(unique_id.clone());
 
                 // Determine column range within this week
                 let (start_col, end_col) = if event.is_multi_day() {
@@ -120,7 +123,7 @@ pub fn compute_week_date_event_slots(
                     (col, col)
                 };
 
-                date_events.push((start_col, end_col, event.uid.clone()));
+                date_events.push((start_col, end_col, unique_id));
             }
         }
     }
@@ -205,12 +208,13 @@ pub fn collect_date_event_segments(
         for (col, date) in week_dates.iter().enumerate() {
             if let Some(day_events) = events_by_date.get(date) {
                 for event in day_events {
+                    let unique_id = event.unique_id();
                     // Only process date events we haven't seen this week
-                    if !event.all_day || week_seen.contains(&event.uid) {
+                    if !event.all_day || week_seen.contains(&unique_id) {
                         continue;
                     }
 
-                    week_seen.insert(event.uid.clone());
+                    week_seen.insert(unique_id);
 
                     // Determine start/end columns for this event in this week
                     // Also capture the event's start date for drag operations
@@ -238,16 +242,18 @@ pub fn collect_date_event_segments(
                     };
 
                     // Determine if this is the first segment for this event
-                    let is_first_segment = !global_seen.contains_key(&event.uid);
-                    global_seen.insert(event.uid.clone(), true);
+                    let unique_id = event.unique_id();
+                    let is_first_segment = !global_seen.contains_key(&unique_id);
+                    global_seen.insert(unique_id.clone(), true);
 
                     // Get slot for this event
-                    let slot = week_slot_info.slots.get(&event.uid).copied().unwrap_or(0);
+                    let slot = week_slot_info.slots.get(&unique_id).copied().unwrap_or(0);
 
                     // Get the actual date for the segment's end column (used for past event dimming)
                     let segment_end_date = week_dates[end_col];
 
                     segments.push(DateEventSegment {
+                        calendar_id: event.calendar_id.clone(),
                         uid: event.uid.clone(),
                         summary: event.summary.clone(),
                         color: event.color.clone(),
@@ -357,8 +363,9 @@ pub fn render_date_events_overlay<'a>(
 
                     // Render the spanning chip (full or compact based on mode)
                     let span_cols = seg.end_col - seg.start_col + 1;
-                    let is_selected = selected_event_uid == Some(seg.uid.as_str());
-                    let is_being_dragged = dragging_event_uid == Some(seg.uid.as_str());
+                    let unique_id = format!("{}:{}", seg.calendar_id, seg.uid);
+                    let is_selected = selected_event_uid == Some(unique_id.as_str());
+                    let is_being_dragged = dragging_event_uid == Some(unique_id.as_str());
                     let chip = if compact {
                         render_compact_date_event_chip(
                             seg.color.clone(),
@@ -367,6 +374,7 @@ pub fn render_date_events_overlay<'a>(
                         )
                     } else {
                         render_date_event_chip(
+                            seg.calendar_id.clone(),
                             seg.uid.clone(),
                             seg.summary.clone(),
                             seg.color.clone(),

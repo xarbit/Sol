@@ -126,8 +126,8 @@ pub enum Message {
     SelectEvent(String),
 
     // Event drag-and-drop
-    /// Start dragging an event to move it (uid, original_date, summary, color)
-    DragEventStart(String, NaiveDate, String, String),
+    /// Start dragging an event to move it (calendar_id, uid, original_date, summary, color)
+    DragEventStart(String, String, NaiveDate, String, String),
     /// Update the drag target date as user drags over cells
     DragEventUpdate(NaiveDate),
     /// Update cursor position during drag (x, y)
@@ -140,8 +140,8 @@ pub enum Message {
     // Event management - Event dialog
     /// Open the event dialog for creating a new event
     OpenNewEventDialog,
-    /// Open the event dialog for editing an existing event
-    OpenEditEventDialog(String),
+    /// Open the event dialog for editing an existing event (calendar_id, uid)
+    OpenEditEventDialog(String, String),
     /// Toggle edit mode for a specific field
     EventDialogToggleEdit(EventDialogField, bool),
     /// Update event title in dialog
@@ -236,4 +236,10 @@ pub enum Message {
     ConfirmImport,
     /// Cancel import operation
     CancelImport,
+    /// Update import progress (current_index, event_summary)
+    ImportProgressUpdate(usize, String),
+    /// Cancel import progress and rollback
+    CancelImportProgress,
+    /// Revert completed import (rollback all imported events)
+    RevertImport,
 }

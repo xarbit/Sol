@@ -143,6 +143,7 @@ impl ChipSelectionState {
 /// Event with associated calendar color for display
 #[derive(Debug, Clone)]
 pub struct DisplayEvent {
+    pub calendar_id: String, // Calendar ID for unique identification
     pub uid: String,
     pub summary: String,
     pub color: String,      // Hex color from calendar
@@ -156,6 +157,12 @@ pub struct DisplayEvent {
 }
 
 impl DisplayEvent {
+    /// Get a unique identifier for this event that includes the calendar
+    /// This ensures events with the same UID from different calendars are treated as distinct
+    pub fn unique_id(&self) -> String {
+        format!("{}:{}", self.calendar_id, self.uid)
+    }
+
     /// Check if this is a multi-day all-day event
     pub fn is_multi_day(&self) -> bool {
         self.all_day

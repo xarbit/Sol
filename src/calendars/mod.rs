@@ -100,7 +100,15 @@ impl CalendarManager {
     pub fn delete_calendar(&mut self, id: &str) -> bool {
         // First delete all events for this calendar from database
         if let Ok(db) = self.db.lock() {
-            let _ = db.delete_events_for_calendar(id);
+            match db.delete_events_for_calendar(id) {
+                Ok(count) => {
+                    log::info!("Deleted {} events for calendar '{}'", count, id);
+                }
+                Err(e) => {
+                    log::error!("Failed to delete events for calendar '{}': {}", id, e);
+                    // Continue anyway to remove calendar from sources
+                }
+            }
         }
 
         // Remove from sources
@@ -312,6 +320,7 @@ impl CalendarManager {
                             while current <= event_end && current <= range_end {
                                 if current >= range_start {
                                     let display_event = DisplayEvent {
+                                        calendar_id: source.info().id.clone(),
                                         uid: occurrence_event.uid.clone(),
                                         summary: occurrence_event.summary.clone(),
                                         color: calendar_color.clone(),
@@ -350,6 +359,7 @@ impl CalendarManager {
                                 };
 
                                 let display_event = DisplayEvent {
+                                    calendar_id: source.info().id.clone(),
                                     uid: occurrence_event.uid.clone(),
                                     summary: occurrence_event.summary.clone(),
                                     color: calendar_color.clone(),
@@ -410,6 +420,7 @@ impl CalendarManager {
                             while current <= event_end && current <= range_end {
                                 if current >= range_start {
                                     let display_event = DisplayEvent {
+                                        calendar_id: source.info().id.clone(),
                                         uid: occurrence_event.uid.clone(),
                                         summary: occurrence_event.summary.clone(),
                                         color: calendar_color.clone(),
@@ -448,6 +459,7 @@ impl CalendarManager {
                                 };
 
                                 let display_event = DisplayEvent {
+                                    calendar_id: source.info().id.clone(),
                                     uid: occurrence_event.uid.clone(),
                                     summary: occurrence_event.summary.clone(),
                                     color: calendar_color.clone(),

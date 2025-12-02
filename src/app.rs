@@ -137,8 +137,10 @@ pub struct CosmicCalendar {
     pub selection_state: SelectionState,
     /// Event drag state for moving events to new dates
     pub event_drag_state: EventDragState,
-    /// Currently selected event UID (for viewing/editing/deleting)
+    /// Currently selected event UID (for viewing/editing/deleting) - uses unique_id format (calendar_id:uid)
     pub selected_event_uid: Option<String>,
+    /// Cached unique_id (calendar_id:uid) of the event being dragged (computed from event_drag_state)
+    pub dragging_event_unique_id: Option<String>,
     /// Current scroll position for week view - continuously tracked via on_scroll callback
     pub week_view_scroll_opt: Option<cosmic::iced::widget::scrollable::AbsoluteOffset>,
     /// Saved scroll position to restore after quick event closes
@@ -236,6 +238,7 @@ impl CosmicCalendar {
             selection_state: SelectionState::new(),
             event_drag_state: EventDragState::new(),
             selected_event_uid: None,
+            dragging_event_unique_id: None,
             week_view_scroll_opt: None,
             week_view_scroll_restore: None,
             // Legacy field - kept because text_editor::Content doesn't implement Clone
@@ -358,7 +361,7 @@ impl CosmicCalendar {
             active_dialog: &self.active_dialog,
             selected_event_uid: self.selected_event_uid.as_deref(),
             event_drag_active: self.event_drag_state.is_active,
-            dragging_event_uid: self.event_drag_state.event_uid.as_deref(),
+            dragging_event_uid: self.dragging_event_unique_id.as_deref(),
             drag_target_date: self.event_drag_state.target_date(),
         };
 

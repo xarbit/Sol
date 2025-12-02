@@ -7,7 +7,7 @@ use crate::dialogs::{ActiveDialog, DialogAction, DialogManager};
 use crate::message::Message;
 use crate::services::{EventHandler, ExportHandler};
 use cosmic::app::Task;
-use log::{debug, error, info};
+use log::{debug, error, info, warn};
 use std::path::PathBuf;
 
 /// Handle import file message - parse the file and show import dialog
@@ -67,7 +67,7 @@ pub fn handle_import_file(app: &mut CosmicCalendar, path: PathBuf) -> Task<Messa
                             // Refresh the calendar view
                             app.refresh_cached_events();
                             // Open the event dialog for editing/review
-                            return Task::done(cosmic::Action::App(Message::OpenEditEventDialog(event.uid)));
+                            return Task::done(cosmic::Action::App(Message::OpenEditEventDialog(calendar_id, event.uid)));
                         }
                         Err(e) => {
                             error!("handle_import_file: Failed to add event: {}", e);
@@ -149,7 +149,7 @@ pub fn handle_confirm_import(app: &mut CosmicCalendar) -> Task<Message> {
     info!("handle_confirm_import: Confirming import");
 
     // Extract data from the import dialog
-    let (events, _source_file_name, selected_calendar_id) = match &app.active_dialog {
+    let (events, source_file_name, selected_calendar_id) = match &app.active_dialog {
         ActiveDialog::Import {
             events,
             source_file_name,
@@ -186,36 +186,76 @@ pub fn handle_confirm_import(app: &mut CosmicCalendar) -> Task<Message> {
         target_calendar_id
     );
 
+    // For large imports (>10 events), show progress dialog
+    const PROGRESS_THRESHOLD: usize = 10;
+    if events.len() > PROGRESS_THRESHOLD {
+        info!("handle_confirm_import: Large import detected, showing progress dialog");
+        // Open progress dialog
+        app.active_dialog = ActiveDialog::ImportProgress {
+            current: 0,
+            total: events.len(),
+            current_event: String::new(),
+            import_log: Vec::new(),
+            imported_uids: Vec::new(),
+            calendar_id: target_calendar_id.clone(),
+        };
+    }
+
     // Import events one by one using the event handler
     let mut imported_count = 0;
     let mut skipped_count = 0;
+    let mut imported_uids = Vec::new();
 
-    for event in events {
-        // Check if event already exists (by UID)
+    for (index, event) in events.iter().enumerate() {
+        // Check if event already exists in the TARGET calendar (by UID)
         let exists = app
             .calendar_manager
             .sources()
             .iter()
-            .any(|cal| {
+            .find(|cal| cal.info().id == target_calendar_id)
+            .and_then(|cal| {
                 cal.fetch_events()
                     .ok()
                     .map(|events| events.iter().any(|e| e.uid == event.uid))
-                    .unwrap_or(false)
-            });
+            })
+            .unwrap_or(false);
 
         if exists {
-            debug!("handle_confirm_import: Skipping duplicate event uid={}", event.uid);
+            debug!("handle_confirm_import: Skipping duplicate event uid={} in target calendar", event.uid);
             skipped_count += 1;
             continue;
         }
 
         // Add event to the target calendar
-        match EventHandler::add_event(&mut app.calendar_manager, &target_calendar_id, event) {
+        match EventHandler::add_event(&mut app.calendar_manager, &target_calendar_id, event.clone()) {
             Ok(_) => {
                 imported_count += 1;
+                imported_uids.push(event.uid.clone());
+
+                // Update progress dialog if open
+                if let ActiveDialog::ImportProgress {
+                    current,
+                    current_event,
+                    import_log,
+                    ..
+                } = &mut app.active_dialog
+                {
+                    *current = index + 1;
+                    *current_event = event.summary.clone();
+                    import_log.push(format!("✓ Imported: {}", event.summary));
+                }
             }
             Err(e) => {
                 error!("handle_confirm_import: Failed to import event: {}", e);
+
+                // Log error in progress dialog if open
+                if let ActiveDialog::ImportProgress {
+                    import_log,
+                    ..
+                } = &mut app.active_dialog
+                {
+                    import_log.push(format!("✗ Failed: {}", event.summary));
+                }
             }
         }
     }
@@ -228,10 +268,29 @@ pub fn handle_confirm_import(app: &mut CosmicCalendar) -> Task<Message> {
     // Refresh the calendar view
     app.refresh_cached_events();
 
-    // Close the import dialog
-    DialogManager::close(&mut app.active_dialog);
+    // Get calendar name for display
+    let calendar_name = app.calendar_manager.sources()
+        .iter()
+        .find(|cal| cal.info().id == target_calendar_id)
+        .map(|cal| cal.info().name.clone())
+        .unwrap_or_else(|| target_calendar_id.clone());
 
-    // TODO: Show success notification
+    // Show import result dialog
+    let success = imported_count > 0 || skipped_count > 0;
+    let failed_count = events.len() - imported_count - skipped_count;
+
+    app.active_dialog = ActiveDialog::ImportResult {
+        success,
+        imported_count,
+        skipped_count,
+        failed_count,
+        source_file_name,
+        calendar_name,
+        imported_uids,
+        calendar_id: target_calendar_id,
+        error_message: None,
+    };
+
     Task::none()
 }
 
@@ -239,5 +298,105 @@ pub fn handle_confirm_import(app: &mut CosmicCalendar) -> Task<Message> {
 pub fn handle_cancel_import(app: &mut CosmicCalendar) -> Task<Message> {
     debug!("handle_cancel_import: Canceling import");
     DialogManager::close(&mut app.active_dialog);
+    Task::none()
+}
+
+/// Handle cancel import progress message - rollback imported events
+pub fn handle_cancel_import_progress(app: &mut CosmicCalendar) -> Task<Message> {
+    info!("handle_cancel_import_progress: Canceling import and rolling back");
+
+    // Extract imported UIDs and calendar ID from progress dialog
+    let (imported_uids, _calendar_id) = match &app.active_dialog {
+        ActiveDialog::ImportProgress {
+            imported_uids,
+            calendar_id,
+            ..
+        } => (imported_uids.clone(), calendar_id.clone()),
+        _ => {
+            warn!("handle_cancel_import_progress: Not in import progress state");
+            DialogManager::close(&mut app.active_dialog);
+            return Task::none();
+        }
+    };
+
+    info!(
+        "handle_cancel_import_progress: Rolling back {} imported events",
+        imported_uids.len()
+    );
+
+    // Delete all imported events (rollback)
+    for uid in &imported_uids {
+        match EventHandler::delete_event(&mut app.calendar_manager, uid) {
+            Ok(_) => {
+                debug!("handle_cancel_import_progress: Rolled back event uid={}", uid);
+            }
+            Err(e) => {
+                error!("handle_cancel_import_progress: Failed to rollback event uid={}: {}", uid, e);
+            }
+        }
+    }
+
+    info!(
+        "handle_cancel_import_progress: Rollback complete - deleted {} events",
+        imported_uids.len()
+    );
+
+    // Refresh the calendar view
+    app.refresh_cached_events();
+
+    // Close the progress dialog
+    DialogManager::close(&mut app.active_dialog);
+
+    // TODO: Show cancellation notification
+    Task::none()
+}
+
+/// Handle revert import message - rollback completed import
+pub fn handle_revert_import(app: &mut CosmicCalendar) -> Task<Message> {
+    info!("handle_revert_import: Reverting import");
+
+    // Extract imported UIDs and calendar ID from result dialog
+    let (imported_uids, _calendar_id) = match &app.active_dialog {
+        ActiveDialog::ImportResult {
+            imported_uids,
+            calendar_id,
+            ..
+        } => (imported_uids.clone(), calendar_id.clone()),
+        _ => {
+            warn!("handle_revert_import: Not in import result state");
+            DialogManager::close(&mut app.active_dialog);
+            return Task::none();
+        }
+    };
+
+    info!(
+        "handle_revert_import: Reverting {} imported events",
+        imported_uids.len()
+    );
+
+    // Delete all imported events (revert)
+    for uid in &imported_uids {
+        match EventHandler::delete_event(&mut app.calendar_manager, uid) {
+            Ok(_) => {
+                debug!("handle_revert_import: Reverted event uid={}", uid);
+            }
+            Err(e) => {
+                error!("handle_revert_import: Failed to revert event uid={}: {}", uid, e);
+            }
+        }
+    }
+
+    info!(
+        "handle_revert_import: Revert complete - deleted {} events",
+        imported_uids.len()
+    );
+
+    // Refresh the calendar view
+    app.refresh_cached_events();
+
+    // Close the result dialog
+    DialogManager::close(&mut app.active_dialog);
+
+    // TODO: Show revert notification
     Task::none()
 }

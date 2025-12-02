@@ -108,6 +108,42 @@ pub enum ActiveDialog {
         /// Selected target calendar ID
         selected_calendar_id: Option<String>,
     },
+    /// Import progress dialog for large imports
+    ImportProgress {
+        /// Current event being imported (1-indexed)
+        current: usize,
+        /// Total number of events to import
+        total: usize,
+        /// Currently importing event summary
+        current_event: String,
+        /// Log of imported events (for display)
+        import_log: Vec<String>,
+        /// List of imported event UIDs (for rollback)
+        imported_uids: Vec<String>,
+        /// Target calendar ID
+        calendar_id: String,
+    },
+    /// Import result dialog shown after import completes
+    ImportResult {
+        /// Whether the import was successful
+        success: bool,
+        /// Number of events successfully imported
+        imported_count: usize,
+        /// Number of events skipped (duplicates)
+        skipped_count: usize,
+        /// Number of events that failed to import
+        failed_count: usize,
+        /// Source file name for display
+        source_file_name: String,
+        /// Target calendar name for display
+        calendar_name: String,
+        /// List of imported event UIDs (for potential revert)
+        imported_uids: Vec<String>,
+        /// Target calendar ID (for revert)
+        calendar_id: String,
+        /// Optional error message if import failed
+        error_message: Option<String>,
+    },
 }
 
 impl Default for ActiveDialog {

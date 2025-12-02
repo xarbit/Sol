@@ -47,6 +47,7 @@ pub fn render_compact_date_event_chip(
 /// Includes click/drag handling for event selection and movement.
 /// Events on past dates are rendered with reduced opacity.
 pub fn render_date_event_chip(
+    calendar_id: String,
     uid: String,
     summary: String,
     color_hex: String,
@@ -107,11 +108,11 @@ pub fn render_date_event_chip(
     // Wrap with mouse area for drag and click handling
     // Use DragEventStart on press (like timed events) - if released without moving,
     // handle_drag_event_end will treat it as a selection click
-    // Pass summary and color_hex for the floating drag preview
+    // Pass calendar_id, summary and color_hex for the floating drag preview
     let mut area = mouse_area(chip)
-        .on_press(Message::DragEventStart(uid.clone(), event_start_date, drag_summary, color_hex))
+        .on_press(Message::DragEventStart(calendar_id.clone(), uid.clone(), event_start_date, drag_summary, color_hex))
         .on_release(Message::DragEventEnd)
-        .on_double_click(Message::OpenEditEventDialog(uid));
+        .on_double_click(Message::OpenEditEventDialog(calendar_id, uid));
 
     // Track mouse movement during active drag to update target
     if is_drag_active {

@@ -4,7 +4,7 @@
 //! Shows event count, allows calendar selection, and provides import/cancel actions.
 
 use cosmic::iced::Length;
-use cosmic::widget::{button, column, dialog, radio, row, text};
+use cosmic::widget::{button, column, container, dialog, radio, scrollable, text};
 use cosmic::{widget, Element};
 
 use crate::calendars::CalendarSource;
@@ -77,8 +77,8 @@ pub fn render_import_dialog<'a>(
     let events_preview = if !events.is_empty() {
         let mut event_list = column().spacing(4);
 
-        // Show up to 5 events as preview
-        for event in events.iter().take(5) {
+        // Show ALL events in scrollable area
+        for event in events.iter() {
             let event_text = if event.all_day {
                 format!("• {}", event.summary)
             } else {
@@ -92,17 +92,17 @@ pub fn render_import_dialog<'a>(
             event_list = event_list.push(text(event_text).size(12));
         }
 
-        if events.len() > 5 {
-            event_list = event_list.push(
-                text(fl!("import-more-events", count = ((events.len() - 5) as i64)))
-                    .size(12),
-            );
-        }
+        // Wrap event list in a scrollable container with fixed height
+        let scrollable_events = scrollable(
+            container(event_list)
+                .padding(8)
+        )
+        .height(Length::Fixed(200.0));
 
         column()
             .spacing(8)
             .push(text(fl!("import-events-preview")).size(14))
-            .push(event_list)
+            .push(scrollable_events)
     } else {
         column()
     };

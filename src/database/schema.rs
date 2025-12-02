@@ -7,7 +7,7 @@ use std::path::PathBuf;
 use crate::caldav::CalendarEvent;
 
 /// Current database schema version for migrations
-const SCHEMA_VERSION: i32 = 4;
+const SCHEMA_VERSION: i32 = 5;
 
 /// Database connection wrapper with encryption support
 pub struct Database {
@@ -140,7 +140,7 @@ impl Database {
 
             -- Events table (calendar metadata is in config file)
             CREATE TABLE IF NOT EXISTS events (
-                uid TEXT PRIMARY KEY,
+                uid TEXT NOT NULL,
                 calendar_id TEXT NOT NULL,
                 summary TEXT NOT NULL,
                 location TEXT,
@@ -158,7 +158,8 @@ impl Database {
                 url TEXT,
                 notes TEXT,
                 created_at TEXT NOT NULL DEFAULT (datetime('now')),
-                updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+                updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+                UNIQUE(calendar_id, uid)
             );
 
             -- Index for efficient date range queries
@@ -238,6 +239,56 @@ impl Database {
             )?;
         }
 
+        if from_version < 5 {
+            // Migrate from v4 to v5: Change UID from PRIMARY KEY to composite UNIQUE(calendar_id, uid)
+            // This allows the same event UID to exist in multiple calendars
+            self.conn.execute_batch(
+                r#"
+                -- Create new events table with composite UNIQUE constraint
+                CREATE TABLE IF NOT EXISTS events_new (
+                    uid TEXT NOT NULL,
+                    calendar_id TEXT NOT NULL,
+                    summary TEXT NOT NULL,
+                    location TEXT,
+                    all_day INTEGER NOT NULL DEFAULT 0,
+                    start_time TEXT NOT NULL,
+                    end_time TEXT NOT NULL,
+                    travel_time TEXT NOT NULL DEFAULT 'None',
+                    repeat TEXT NOT NULL DEFAULT 'Never',
+                    repeat_until TEXT,
+                    exception_dates TEXT NOT NULL DEFAULT '[]',
+                    invitees TEXT NOT NULL DEFAULT '[]',
+                    alert TEXT NOT NULL DEFAULT 'None',
+                    alert_second TEXT,
+                    attachments TEXT NOT NULL DEFAULT '[]',
+                    url TEXT,
+                    notes TEXT,
+                    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+                    UNIQUE(calendar_id, uid)
+                );
+
+                -- Copy all existing data
+                INSERT INTO events_new (uid, calendar_id, summary, location, all_day, start_time, end_time,
+                                       travel_time, repeat, repeat_until, exception_dates, invitees, alert,
+                                       alert_second, attachments, url, notes, created_at, updated_at)
+                SELECT uid, calendar_id, summary, location, all_day, start_time, end_time,
+                       travel_time, repeat, repeat_until, exception_dates, invitees, alert,
+                       alert_second, attachments, url, notes, created_at, updated_at
+                FROM events;
+
+                -- Drop old table and rename new one
+                DROP TABLE events;
+                ALTER TABLE events_new RENAME TO events;
+
+                -- Recreate indexes
+                CREATE INDEX IF NOT EXISTS idx_events_start_time ON events(start_time);
+                CREATE INDEX IF NOT EXISTS idx_events_calendar_id ON events(calendar_id);
+                CREATE INDEX IF NOT EXISTS idx_events_calendar_date ON events(calendar_id, start_time);
+                "#,
+            )?;
+        }
+
         self.set_schema_version(SCHEMA_VERSION)?;
         Ok(())
     }
@@ -291,7 +342,7 @@ impl Database {
 
     /// Update an existing event
     #[allow(dead_code)] // Used by LocalCalendar trait implementation
-    pub fn update_event(&self, event: &CalendarEvent) -> Result<(), Box<dyn Error>> {
+    pub fn update_event(&self, calendar_id: &str, event: &CalendarEvent) -> Result<(), Box<dyn Error>> {
         let travel_time = serde_json::to_string(&event.travel_time)?;
         let repeat = serde_json::to_string(&event.repeat)?;
         let invitees = serde_json::to_string(&event.invitees)?;
@@ -308,25 +359,26 @@ impl Database {
         self.conn.execute(
             r#"
             UPDATE events SET
-                summary = ?2,
-                location = ?3,
-                all_day = ?4,
-                start_time = ?5,
-                end_time = ?6,
-                travel_time = ?7,
-                repeat = ?8,
-                repeat_until = ?9,
-                exception_dates = ?10,
-                invitees = ?11,
-                alert = ?12,
-                alert_second = ?13,
-                attachments = ?14,
-                url = ?15,
-                notes = ?16,
+                summary = ?3,
+                location = ?4,
+                all_day = ?5,
+                start_time = ?6,
+                end_time = ?7,
+                travel_time = ?8,
+                repeat = ?9,
+                repeat_until = ?10,
+                exception_dates = ?11,
+                invitees = ?12,
+                alert = ?13,
+                alert_second = ?14,
+                attachments = ?15,
+                url = ?16,
+                notes = ?17,
                 updated_at = datetime('now')
-            WHERE uid = ?1
+            WHERE calendar_id = ?1 AND uid = ?2
             "#,
             params![
+                calendar_id,
                 event.uid,
                 event.summary,
                 event.location,
@@ -349,8 +401,11 @@ impl Database {
     }
 
     /// Delete an event by UID
-    pub fn delete_event(&self, uid: &str) -> Result<bool, Box<dyn Error>> {
-        let rows = self.conn.execute("DELETE FROM events WHERE uid = ?1", params![uid])?;
+    pub fn delete_event(&self, calendar_id: &str, uid: &str) -> Result<bool, Box<dyn Error>> {
+        let rows = self.conn.execute(
+            "DELETE FROM events WHERE calendar_id = ?1 AND uid = ?2",
+            params![calendar_id, uid]
+        )?;
         Ok(rows > 0)
     }
 

@@ -28,6 +28,8 @@ mod manager;
 mod event_dialog;
 mod calendar_dialog;
 mod import_dialog;
+mod import_progress_dialog;
+mod import_result_dialog;
 
 pub use manager::{
     ActiveDialog,
@@ -36,6 +38,8 @@ pub use manager::{
     QuickEventResult,
 };
 pub use import_dialog::render_import_dialog;
+pub use import_progress_dialog::render_import_progress_dialog;
+pub use import_result_dialog::render_import_result_dialog;
 
 // Keep old exports for backwards compatibility during migration
 // Note: EventDialogData is managed through legacy fields because text_editor::Content

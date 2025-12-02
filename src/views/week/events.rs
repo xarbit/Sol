@@ -136,8 +136,10 @@ fn render_positioned_event_block(
     selected_event_uid: Option<&str>,
 ) -> Element<'static, Message> {
     let color = parse_color_safe(&event.color);
+    let calendar_id = event.calendar_id.clone();
     let uid = event.uid.clone();
-    let is_selected = selected_event_uid == Some(&event.uid);
+    let unique_id = event.unique_id();
+    let is_selected = selected_event_uid == Some(&unique_id);
 
     // Check if this event is in the past (considering time on today)
     let now = Local::now();
@@ -199,9 +201,9 @@ fn render_positioned_event_block(
     let color_hex = event.color.clone();
 
     mouse_area(chip)
-        .on_press(Message::DragEventStart(uid.clone(), date, event.summary.clone(), color_hex))
+        .on_press(Message::DragEventStart(calendar_id.clone(), uid.clone(), date, event.summary.clone(), color_hex))
         .on_release(Message::DragEventEnd)
-        .on_double_click(Message::OpenEditEventDialog(uid))
+        .on_double_click(Message::OpenEditEventDialog(calendar_id, uid))
         .on_enter(Message::DragEventUpdate(date))
         .into()
 }

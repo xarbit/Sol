@@ -79,6 +79,7 @@ pub fn render_clickable_event_chip(
     is_drag_active: bool,
     is_being_dragged: bool,
 ) -> Element<'static, Message> {
+    let calendar_id = event.calendar_id.clone();
     let uid = event.uid.clone();
     let color = parse_hex_color(&event.color).unwrap_or(COLOR_DEFAULT_GRAY);
     // Clone summary and color_hex for the drag preview message (before they're moved into chip)
@@ -101,11 +102,11 @@ pub fn render_clickable_event_chip(
     // - on_press: Start drag (will be resolved as select or move on release)
     // - on_release: End drag (complete move or select if no movement)
     // - on_double_click: Open edit dialog
-    // Pass summary and color for the floating drag preview
+    // Pass calendar_id, summary and color for the floating drag preview
     let mut area = mouse_area(chip)
-        .on_press(Message::DragEventStart(uid.clone(), current_date, drag_summary, drag_color))
+        .on_press(Message::DragEventStart(calendar_id.clone(), uid.clone(), current_date, drag_summary, drag_color))
         .on_release(Message::DragEventEnd)
-        .on_double_click(Message::OpenEditEventDialog(uid));
+        .on_double_click(Message::OpenEditEventDialog(calendar_id, uid));
 
     // Only track mouse enter during active drag for performance
     if is_drag_active {

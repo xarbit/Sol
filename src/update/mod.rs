@@ -539,8 +539,8 @@ pub fn handle_message(app: &mut CosmicCalendar, message: Message) -> Task<Messag
         }
 
         // === Event Drag-and-Drop ===
-        Message::DragEventStart(uid, date, summary, color) => {
-            handle_drag_event_start(app, uid, date, summary, color);
+        Message::DragEventStart(calendar_id, uid, date, summary, color) => {
+            handle_drag_event_start(app, calendar_id, uid, date, summary, color);
         }
         Message::DragEventUpdate(date) => {
             handle_drag_event_update(app, date);
@@ -559,12 +559,12 @@ pub fn handle_message(app: &mut CosmicCalendar, message: Message) -> Task<Messag
         Message::OpenNewEventDialog => {
             handle_open_new_event_dialog(app);
         }
-        Message::OpenEditEventDialog(uid) => {
+        Message::OpenEditEventDialog(calendar_id, uid) => {
             // Cancel any drag operation that may have started from the first click of double-click
             app.event_drag_state.cancel();
             // Clear selection since we're opening the edit dialog
             app.selected_event_uid = None;
-            handle_open_edit_event_dialog(app, uid);
+            handle_open_edit_event_dialog(app, calendar_id, uid);
         }
         Message::EventDialogToggleEdit(field, editing) => {
             #[allow(deprecated)]
@@ -966,6 +966,24 @@ pub fn handle_message(app: &mut CosmicCalendar, message: Message) -> Task<Messag
         }
         Message::CancelImport => {
             return import::handle_cancel_import(app);
+        }
+        Message::ImportProgressUpdate(index, summary) => {
+            // Update progress dialog state
+            if let ActiveDialog::ImportProgress {
+                current,
+                current_event,
+                ..
+            } = &mut app.active_dialog
+            {
+                *current = index;
+                *current_event = summary;
+            }
+        }
+        Message::CancelImportProgress => {
+            return import::handle_cancel_import_progress(app);
+        }
+        Message::RevertImport => {
+            return import::handle_revert_import(app);
         }
     }
 
