@@ -1,0 +1,46 @@
+app-id: io.github.xarbit.SolCalendar
+runtime: org.freedesktop.Platform
+runtime-version: '25.08'
+sdk: org.freedesktop.Sdk
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.rust-stable
+command: sol-calendar
+
+finish-args:
+  # IPC and display
+  - --share=ipc
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --device=dri
+
+  # D-Bus access for COSMIC desktop integration
+  - --socket=session-bus
+  - --talk-name=com.system76.CosmicSettings
+  - --talk-name=com.system76.CosmicSettingsDaemon
+  - --talk-name=com.system76.CosmicTheme
+  - --talk-name=com.system76.CosmicTheme.*
+
+  # Filesystem access for calendar import/export
+  - --filesystem=xdg-documents:rw
+  - --filesystem=xdg-download:rw
+
+build-options:
+  append-path: /usr/lib/sdk/rust-stable/bin
+  env:
+    CARGO_HOME: /run/build/sol-calendar/cargo
+
+modules:
+  - name: sol-calendar
+    buildsystem: simple
+    build-commands:
+      - cargo --offline fetch --manifest-path Cargo.toml --verbose
+      - cargo --offline build --release --verbose
+      - install -Dm755 ./target/release/sol-calendar -t /app/bin/
+      - install -Dm644 ./res/io.github.xarbit.SolCalendar.desktop /app/share/applications/io.github.xarbit.SolCalendar.desktop
+      - install -Dm644 ./res/io.github.xarbit.SolCalendar.metainfo.xml /app/share/metainfo/io.github.xarbit.SolCalendar.metainfo.xml
+      - install -Dm644 ./res/icons/hicolor/scalable/apps/io.github.xarbit.SolCalendar.svg /app/share/icons/hicolor/scalable/apps/io.github.xarbit.SolCalendar.svg
+
+    sources:
+      - type: dir
+        path: .
+      - cargo-sources.json

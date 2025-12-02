@@ -70,3 +70,25 @@ vendor:
 # Clean build artifacts
 clean:
     cargo clean
+
+# Generate Flatpak cargo dependencies manifest
+flatpak-deps:
+    python3 scripts/flatpak-cargo-generator.py Cargo.lock -o cargo-sources.json
+    @echo "✅ Generated cargo-sources.json"
+
+# Build Flatpak locally
+flatpak-build:
+    bash scripts/build-flatpak.sh
+
+# Build standalone Flatpak bundle (.flatpak file)
+flatpak-bundle:
+    bash scripts/build-flatpak-bundle.sh
+
+# Run Flatpak
+flatpak-run *args:
+    flatpak run {{appid}} {{args}}
+
+# Uninstall local Flatpak
+flatpak-uninstall:
+    flatpak uninstall --user -y {{appid}} || true
+    @echo "✅ Uninstalled {{appid}}"
