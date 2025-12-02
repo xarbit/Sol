@@ -22,16 +22,17 @@ pub struct CalDavProtocol {
 impl CalDavProtocol {
     /// Create a new CalDavProtocol with server credentials
     #[allow(dead_code)] // Part of protocol API
-    pub fn new(server_url: String, username: String, password: String) -> Self {
-        CalDavProtocol {
-            client: CalDavClient::new(server_url, username, password),
+    pub fn new(server_url: String, username: String, password: String) -> ProtocolResult<Self> {
+        let client = CalDavClient::new(server_url, username, password)?;
+        Ok(CalDavProtocol {
+            client,
             cached_events: Vec::new(),
-        }
+        })
     }
 
     /// Create a CalDavProtocol for Google Calendar
     #[allow(dead_code)] // Part of protocol API
-    pub fn google(calendar_id: &str, username: &str, password: &str) -> Self {
+    pub fn google(calendar_id: &str, username: &str, password: &str) -> ProtocolResult<Self> {
         let server_url = format!(
             "https://apidata.googleusercontent.com/caldav/v2/{}/events",
             calendar_id
@@ -41,7 +42,7 @@ impl CalDavProtocol {
 
     /// Create a CalDavProtocol for Apple iCloud
     #[allow(dead_code)] // Part of protocol API
-    pub fn icloud(username: &str, password: &str) -> Self {
+    pub fn icloud(username: &str, password: &str) -> ProtocolResult<Self> {
         let server_url = format!(
             "https://caldav.icloud.com/{}/calendars/",
             username
@@ -51,7 +52,15 @@ impl CalDavProtocol {
 
     /// Create a CalDavProtocol for Nextcloud
     #[allow(dead_code)] // Part of protocol API
-    pub fn nextcloud(server_url: &str, username: &str, password: &str, calendar_name: &str) -> Self {
+    pub fn nextcloud(server_url: &str, username: &str, password: &str, calendar_name: &str) -> ProtocolResult<Self> {
+        // Security: Validate HTTPS before constructing full URL
+        if !server_url.starts_with("https://") {
+            return Err(format!(
+                "Nextcloud server URL must use HTTPS for secure transmission. Got: {}",
+                server_url
+            ).into());
+        }
+
         let url = format!(
             "{}/remote.php/dav/calendars/{}/{}",
             server_url.trim_end_matches('/'),

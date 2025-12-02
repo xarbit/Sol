@@ -124,6 +124,98 @@ fl!("app-title")  // Returns localized string
 - **Protocols are storage-agnostic** - they only know how to read/write events
 - **EventHandler is the single point** for event CRUD operations
 
+## Security Best Practices
+
+### ⚠️ Avoid Logging Sensitive Information
+
+**NEVER log user-generated content or personally identifiable information.** This includes:
+
+❌ **DO NOT LOG:**
+- Event summaries/titles (may contain sensitive appointments)
+- Event notes/descriptions
+- Event locations
+- Invitee email addresses
+- User credentials (passwords, tokens, API keys)
+- Full event objects
+
+✅ **SAFE TO LOG:**
+- Event UIDs (non-sensitive identifiers)
+- Calendar IDs
+- Operation types (create, update, delete)
+- Error codes and status messages
+- Technical metadata (timestamps, counts)
+
+**Example:**
+```rust
+// ❌ BAD - Logs sensitive event title
+info!("Creating event '{}'", event.summary);
+
+// ✅ GOOD - Logs only UID
+info!("Creating event uid={}", event.uid);
+
+// ❌ BAD - Logs user email
+debug!("User {} logged in", email);
+
+// ✅ GOOD - Logs only action
+debug!("User authentication successful");
+```
+
+### 🔒 Avoid Cleartext Transmission of Sensitive Information
+
+**ALWAYS use HTTPS for network communication.** Never transmit credentials or calendar data over unencrypted HTTP connections.
+
+**Requirements:**
+
+1. **Enforce HTTPS at Client Level**
+   - Use `reqwest::Client::builder().https_only(true)` for all HTTP clients
+   - Reject HTTP URLs with clear error messages
+
+2. **Validate URLs Before Use**
+   - Check that all user-supplied URLs start with `https://`
+   - Reject or upgrade HTTP URLs to HTTPS
+   - Validate at multiple layers (client, protocol, calendar)
+
+3. **Defense in Depth**
+   - Validate HTTPS at the earliest point possible
+   - Re-validate at each layer of abstraction
+   - Never assume input has been validated upstream
+
+**Example:**
+```rust
+// ✅ GOOD - Validates HTTPS before creating client
+pub fn new(server_url: String, username: String, password: String) -> Result<Self, Box<dyn Error>> {
+    // Security: Enforce HTTPS-only connections
+    if !server_url.starts_with("https://") {
+        return Err(format!(
+            "Server URL must use HTTPS for secure transmission. Got: {}",
+            server_url
+        ).into());
+    }
+
+    // Configure client to enforce HTTPS
+    let client = Client::builder()
+        .https_only(true)
+        .build()?;
+
+    Ok(Self { server_url, username, password, client })
+}
+
+// ❌ BAD - Accepts any URL without validation
+pub fn new(server_url: String, username: String, password: String) -> Self {
+    Self {
+        server_url,  // Could be http://
+        client: Client::new(),  // Allows HTTP
+    }
+}
+```
+
+**Security Checklist for Network Code:**
+- [ ] All `CalDavClient` instances enforce HTTPS
+- [ ] User-supplied URLs validated before use
+- [ ] Error messages guide users to HTTPS
+- [ ] No hardcoded HTTP URLs in codebase
+- [ ] Credentials never logged or transmitted over HTTP
+
 ## Data Flow
 
 ### Event Creation Flow (UI → Database → UI)

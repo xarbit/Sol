@@ -401,7 +401,7 @@ pub fn handle_open_edit_event_dialog(app: &mut CosmicCalendar, uid: String) {
         }
     };
 
-    info!("handle_open_edit_event_dialog: Found event '{}' in calendar '{}'", event.summary, calendar_id);
+    info!("handle_open_edit_event_dialog: Found event uid={} in calendar '{}'", event.uid, calendar_id);
 
     // Convert UTC times to local dates/times
     let start_date = event.start.date_naive();

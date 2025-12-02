@@ -24,15 +24,15 @@ impl CalDavCalendar {
         server_url: String,
         username: String,
         password: String,
-    ) -> Self {
+    ) -> Result<Self, Box<dyn Error>> {
         let info = CalendarInfo::new(id, name, CalendarType::CalDav);
-        let client = CalDavClient::new(server_url, username, password);
+        let client = CalDavClient::new(server_url, username, password)?;
 
-        CalDavCalendar {
+        Ok(CalDavCalendar {
             info,
             client,
             cached_events: Vec::new(),
-        }
+        })
     }
 
     /// Create a CalDAV calendar with custom type (e.g., Google, iCloud)
@@ -43,7 +43,7 @@ impl CalDavCalendar {
         server_url: String,
         username: String,
         password: String,
-    ) -> Self {
+    ) -> Result<Self, Box<dyn Error>> {
         let mut info = CalendarInfo::new(id, name, calendar_type);
         // Use the custom type's default color
         info.color = match calendar_type {
@@ -53,13 +53,13 @@ impl CalDavCalendar {
             _ => "#8B5CF6".to_string(),
         };
 
-        let client = CalDavClient::new(server_url, username, password);
+        let client = CalDavClient::new(server_url, username, password)?;
 
-        CalDavCalendar {
+        Ok(CalDavCalendar {
             info,
             client,
             cached_events: Vec::new(),
-        }
+        })
     }
 
     /// Create a Google Calendar instance (uses CalDAV protocol)
@@ -69,7 +69,7 @@ impl CalDavCalendar {
         calendar_id: String,
         username: String,
         password: String,
-    ) -> Self {
+    ) -> Result<Self, Box<dyn Error>> {
         let server_url = format!(
             "https://apidata.googleusercontent.com/caldav/v2/{}/events",
             calendar_id
@@ -83,7 +83,7 @@ impl CalDavCalendar {
         name: String,
         username: String,
         password: String,
-    ) -> Self {
+    ) -> Result<Self, Box<dyn Error>> {
         let server_url = format!(
             "https://caldav.icloud.com/{}/calendars",
             username
@@ -99,7 +99,15 @@ impl CalDavCalendar {
         username: String,
         password: String,
         calendar_name: String,
-    ) -> Self {
+    ) -> Result<Self, Box<dyn Error>> {
+        // Security: Validate HTTPS before constructing full URL
+        if !server_url.starts_with("https://") {
+            return Err(format!(
+                "Nextcloud server URL must use HTTPS for secure transmission. Got: {}",
+                server_url
+            ).into());
+        }
+
         let full_url = format!(
             "{}/remote.php/dav/calendars/{}/{}",
             server_url.trim_end_matches('/'),

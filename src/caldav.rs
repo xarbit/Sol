@@ -104,13 +104,26 @@ pub struct CalDavClient {
 
 #[allow(dead_code)]
 impl CalDavClient {
-    pub fn new(server_url: String, username: String, password: String) -> Self {
-        CalDavClient {
+    pub fn new(server_url: String, username: String, password: String) -> Result<Self, Box<dyn Error>> {
+        // Security: Enforce HTTPS-only connections
+        if !server_url.starts_with("https://") {
+            return Err(format!(
+                "CalDAV server URL must use HTTPS for secure transmission. Got: {}",
+                server_url
+            ).into());
+        }
+
+        // Configure client to enforce HTTPS
+        let client = Client::builder()
+            .https_only(true)
+            .build()?;
+
+        Ok(CalDavClient {
             server_url,
             username,
             password,
-            client: Client::new(),
-        }
+            client,
+        })
     }
 
     pub fn fetch_events(&self) -> Result<Vec<CalendarEvent>, Box<dyn Error>> {
@@ -236,7 +249,7 @@ mod tests {
             "https://example.com/caldav".to_string(),
             "user".to_string(),
             "pass".to_string(),
-        );
+        ).expect("Failed to create CalDAV client");
 
         let _event = CalendarEvent {
             uid: "test-event-1".to_string(),
