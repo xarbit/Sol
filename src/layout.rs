@@ -1,5 +1,6 @@
 use crate::app::CosmicCalendar;
 use crate::components::{render_calendar_dialog, render_delete_calendar_dialog, render_delete_event_dialog, render_event_dialog};
+use crate::dialogs::render_import_dialog;
 use crate::message::Message;
 use crate::styles;
 use crate::ui_constants::{BORDER_RADIUS, SIDEBAR_WIDTH};
@@ -79,6 +80,11 @@ fn render_dialog_overlay<'a>(
         }
         ActiveDialog::EventDelete { .. } => {
             let dialog = render_delete_event_dialog(&app.active_dialog);
+            let dialog_with_backdrop = wrap_dialog_with_backdrop(dialog);
+            return stack![with_drag_preview, dialog_with_backdrop].into();
+        }
+        ActiveDialog::Import { .. } => {
+            let dialog = render_import_dialog(&app.active_dialog, app.calendar_manager.sources());
             let dialog_with_backdrop = wrap_dialog_with_backdrop(dialog);
             return stack![with_drag_preview, dialog_with_backdrop].into();
         }

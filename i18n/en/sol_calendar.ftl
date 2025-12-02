@@ -147,6 +147,18 @@ button-delete = Delete
 button-close = Close
 button-create = Create
 button-apply = Apply
+button-import = Import
+
+# Dialog - Import
+dialog-import-title = Import Calendar Events
+import-source-file = Source file
+import-event-count = {$count ->
+    [one] 1 event to import
+    *[other] {$count} events to import
+}
+import-target-calendar = Import into calendar
+import-events-preview = Events preview
+import-more-events = ...and {$count} more
 
 # Dialog - Calendar (New/Edit)
 dialog-new-calendar-title = New Calendar

@@ -22,6 +22,7 @@
 
 mod calendar;
 mod event;
+mod import;
 mod navigation;
 mod selection;
 
@@ -34,7 +35,7 @@ use crate::app::CosmicCalendar;
 use crate::components::quick_event_input_id;
 use crate::dialogs::{ActiveDialog, DialogManager};
 use crate::message::Message;
-use crate::services::SettingsHandler;
+use crate::services::{ExportHandler, SettingsHandler};
 use crate::views::{week_time_grid_id, CalendarView};
 use crate::ui_constants::HOUR_ROW_HEIGHT;
 use cosmic::iced_widget::text_input;
@@ -870,12 +871,65 @@ pub fn handle_message(app: &mut CosmicCalendar, message: Message) -> Task<Messag
             handle_open_new_event_dialog(app);
         }
         Message::ImportICal => {
-            // TODO: Open file picker for iCal import
-            info!("Message::ImportICal: Import iCal requested (not yet implemented)");
+            // Open file picker dialog using XDG portal (Flatpak-compatible)
+            info!("Message::ImportICal: Opening file picker");
+
+            return Task::perform(
+                async {
+                    rfd::AsyncFileDialog::new()
+                        .add_filter("iCalendar files", &["ics", "ical", "ifb", "icalendar"])
+                        .add_filter("All files", &["*"])
+                        .set_title("Import iCalendar File")
+                        .pick_file()
+                        .await
+                        .map(|handle| handle.path().to_path_buf())
+                },
+                |option_path| {
+                    if let Some(path) = option_path {
+                        cosmic::Action::App(Message::ImportFile(path))
+                    } else {
+                        // User cancelled the file picker
+                        cosmic::Action::App(Message::CancelImport)
+                    }
+                },
+            );
         }
         Message::ExportICal => {
-            // TODO: Open file picker for iCal export
-            info!("Message::ExportICal: Export iCal requested (not yet implemented)");
+            // Export the first calendar to Downloads folder
+            info!("Message::ExportICal: Export iCal requested");
+
+            if let Some(calendar) = app.calendar_manager.sources().first() {
+                let calendar_id = calendar.info().id.clone();
+                let calendar_name = calendar.info().name.clone();
+
+                // Create export filename with timestamp
+                let timestamp = chrono::Local::now().format("%Y%m%d_%H%M%S");
+                let filename = format!("{}_{}.ics", calendar_name.replace(" ", "_"), timestamp);
+
+                // Export to Downloads folder
+                if let Some(downloads_dir) = dirs::download_dir() {
+                    let export_path = downloads_dir.join(&filename);
+
+                    match ExportHandler::export_to_file(
+                        &app.calendar_manager,
+                        &calendar_id,
+                        &export_path,
+                    ) {
+                        Ok(_) => {
+                            info!("Message::ExportICal: Exported to {:?}", export_path);
+                            // TODO: Show success notification
+                        }
+                        Err(e) => {
+                            error!("Message::ExportICal: Export failed: {}", e);
+                            // TODO: Show error notification
+                        }
+                    }
+                } else {
+                    error!("Message::ExportICal: Could not determine Downloads folder");
+                }
+            } else {
+                error!("Message::ExportICal: No calendars available to export");
+            }
         }
         Message::Settings => {
             // TODO: Open settings dialog
@@ -899,26 +953,19 @@ pub fn handle_message(app: &mut CosmicCalendar, message: Message) -> Task<Messag
 
         // === Import/Export Operations ===
         Message::ImportFile(path) => {
-            // TODO: Implement file import handling
-            // Parse the file and show import dialog
-            info!("Message::ImportFile: {:?}", path);
+            return import::handle_import_file(app, path);
         }
         Message::ShowImportDialog(events, source_file_name) => {
-            // TODO: Open import dialog with parsed events
-            info!("Message::ShowImportDialog: {} events from {}", events.len(), source_file_name);
+            return import::handle_show_import_dialog(app, events, source_file_name);
         }
         Message::SelectImportCalendar(calendar_id) => {
-            // TODO: Update selected calendar in import dialog
-            info!("Message::SelectImportCalendar: {}", calendar_id);
+            return import::handle_select_import_calendar(app, calendar_id);
         }
         Message::ConfirmImport => {
-            // TODO: Perform the import operation
-            info!("Message::ConfirmImport");
+            return import::handle_confirm_import(app);
         }
         Message::CancelImport => {
-            // TODO: Close import dialog
-            info!("Message::CancelImport");
-            DialogManager::close(&mut app.active_dialog);
+            return import::handle_cancel_import(app);
         }
     }
 

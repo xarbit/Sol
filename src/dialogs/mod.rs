@@ -27,6 +27,7 @@
 mod manager;
 mod event_dialog;
 mod calendar_dialog;
+mod import_dialog;
 
 pub use manager::{
     ActiveDialog,
@@ -34,6 +35,7 @@ pub use manager::{
     DialogManager,
     QuickEventResult,
 };
+pub use import_dialog::render_import_dialog;
 
 // Keep old exports for backwards compatibility during migration
 // Note: EventDialogData is managed through legacy fields because text_editor::Content

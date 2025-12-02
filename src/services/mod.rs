@@ -18,6 +18,7 @@ mod sync_handler;
 
 pub use calendar_handler::{CalendarHandler, NewCalendarData, UpdateCalendarData};
 pub use event_handler::EventHandler;
+pub use export_handler::ExportHandler;
 pub use settings_handler::SettingsHandler;
 
 // Internal types - exported for potential future use but not currently needed externally
@@ -26,7 +27,7 @@ pub(crate) use calendar_handler::{CalendarError, CalendarResult};
 #[allow(unused_imports)]
 pub(crate) use event_handler::{EventError, EventResult};
 #[allow(unused_imports)]
-pub(crate) use export_handler::{ExportHandler, ExportError, ExportResult};
+pub(crate) use export_handler::{ExportError, ExportResult};
 #[allow(unused_imports)]
 pub(crate) use settings_handler::{SettingsError, SettingsResult};
 #[allow(unused_imports)]

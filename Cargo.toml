@@ -41,6 +41,9 @@ serde_json = "1.0"
 # System directories
 dirs = "5.0"
 
+# File dialogs (with XDG portal support for Flatpak)
+rfd = "0.15"
+
 # Internationalization
 i18n-embed = { version = "0.16", features = ["fluent-system", "desktop-requester"] }
 i18n-embed-fl = "0.10"

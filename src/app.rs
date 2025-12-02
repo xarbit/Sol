@@ -413,8 +413,12 @@ impl Application for CosmicCalendar {
         // Handle file arguments if provided
         if !flags.files_to_open.is_empty() {
             info!("CosmicCalendar: {} file(s) to open on startup", flags.files_to_open.len());
-            // TODO: Trigger import dialog for each file
-            // This will be implemented when we add the import messages and handlers
+            // Trigger import for the first file
+            // (Only one dialog can be open at a time)
+            if let Some(file_path) = flags.files_to_open.first() {
+                info!("CosmicCalendar: Triggering import for {:?}", file_path);
+                return (app, cosmic::app::Task::done(cosmic::Action::App(Message::ImportFile(file_path.clone()))));
+            }
         }
 
         (app, cosmic::app::Task::none())
